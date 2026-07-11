@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Lancet Intelligence</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+    background:linear-gradient(135deg,#0f0f0f,#1a1a2e);color:#e0e0e0;line-height:1.6;min-height:100vh}
+
+  .hero{min-height:64vh;display:flex;flex-direction:column;justify-content:center;align-items:center;
+    padding:2rem;text-align:center;background:linear-gradient(180deg,rgba(15,15,15,1),rgba(26,26,46,.8))}
+  .hero h1{font-size:clamp(2rem,5vw,3.4rem);font-weight:700;margin-bottom:.5rem;
+    background:linear-gradient(90deg,#00d4ff,#7c3aed);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .hero p{font-size:1.1rem;color:#999;max-width:60ch}
+
+  .bento{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;padding:3rem 2rem;max-width:840px;margin:0 auto}
+  .card{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:1rem;padding:2.2rem;
+    cursor:pointer;transition:.3s;backdrop-filter:blur(10px);min-height:170px;display:flex;flex-direction:column;
+    justify-content:center;align-items:center;text-align:center;border-left:4px solid var(--c)}
+  .card:hover{transform:translateY(-8px);border-color:rgba(255,255,255,.3);box-shadow:0 16px 48px rgba(0,0,0,.4)}
+  .card .ic{font-size:3rem;margin-bottom:.8rem}
+  .card .lb{font-size:1.3rem;font-weight:600;color:var(--c)}
+  .card .sub{font-size:.82rem;color:#888;margin-top:.4rem}
+
+  .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(5px);
+    justify-content:center;align-items:center;z-index:1000;animation:fade .3s ease;padding:1rem}
+  .modal.active{display:flex}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  @keyframes slide{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+  .mc{background:rgba(26,26,46,.97);border:1px solid rgba(255,255,255,.1);border-radius:1.25rem;padding:1.8rem;
+    width:760px;max-width:96%;max-height:88vh;overflow-y:auto;box-shadow:0 25px 50px rgba(0,0,0,.5);
+    animation:slide .3s ease;border-top:4px solid var(--c)}
+  .mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem}
+  .mh h2{font-size:1.5rem;color:var(--c)}
+  .x{background:none;border:none;color:#999;font-size:1.9rem;cursor:pointer;line-height:1}.x:hover{color:#fff}
+  label{display:block;font-size:.85rem;color:#bbb;margin:.9rem 0 .35rem;font-weight:500}
+  select,input[type=text]{width:100%;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.1);border-radius:.5rem;
+    padding:.7rem;color:#e0e0e0;font-size:1rem}
+  select option{background:#1a1a2e}
+  input[type=range]{width:100%;accent-color:var(--c)}
+  .val{font-variant-numeric:tabular-nums;color:#fff;font-weight:700}
+  .btn{background:linear-gradient(90deg,#00d4ff,#7c3aed);border:none;color:#000;padding:.75rem 2rem;border-radius:.5rem;
+    font-weight:700;cursor:pointer;transition:.3s;font-size:1rem;margin-top:1.2rem;width:100%}
+  .btn:hover{transform:scale(1.02);box-shadow:0 8px 24px rgba(0,212,255,.3)}
+  .results{margin-top:1rem;animation:fade .3s ease}
+  table{width:100%;border-collapse:collapse;font-size:.9rem;display:block;overflow-x:auto}
+  th,td{text-align:left;padding:.55rem .8rem .55rem 0;border-bottom:1px solid rgba(255,255,255,.07);white-space:nowrap}
+  th{color:#9aa4bf;font-weight:600}
+  td.n{font-variant-numeric:tabular-nums;text-align:right}
+  .meta{font-size:.82rem;color:#888;margin-bottom:.5rem}
+  .spin{display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--c);
+    border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .err{color:#ffb3b3}
+  footer{text-align:center;padding:2rem;color:#666;border-top:1px solid rgba(255,255,255,.05);font-size:.85rem}
+  footer a{color:#00d4ff;text-decoration:none}footer a:hover{text-decoration:underline}
+  @media(max-width:768px){.bento{grid-template-columns:1fr}.hero{min-height:auto;padding-top:3rem}}
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <h1>📊 The Lancet Intelligence</h1>
+  <p>Institutional research growth and author rankings across The Lancet journal family, computed from a local OpenAlex mirror — keyless, data-driven analytics.</p>
+</section>
+
+<section class="bento">
+  <div class="card" style="--c:#00d4ff" onclick="openModal('aff')">
+    <div class="ic">👥</div><div class="lb">Affiliations</div><div class="sub">Institution growth</div>
+  </div>
+  <div class="card" style="--c:#7c3aed" onclick="openModal('auth')">
+    <div class="ic">✍️</div><div class="lb">Authors</div><div class="sub">Ranked by citations</div>
+  </div>
+</section>
+
+<!-- Affiliations modal -->
+<div class="modal" id="affModal"><div class="mc" style="--c:#00d4ff">
+  <div class="mh"><h2>👥 Affiliation Growth</h2><button class="x" onclick="closeModal('aff')">&times;</button></div>
+  <label>Journal</label>
+  <select id="aff_journal">
+    <option value="">All Lancet journals</option>
+    <option value="lancet" selected>The Lancet (flagship)</option>
+    <option value="lancet-neurology">Lancet Neurology</option>
+    <option value="lancet-oncology">Lancet Oncology</option>
+    <option value="lancet-infectious-diseases">Lancet Infectious Diseases</option>
+    <option value="lancet-public-health">Lancet Public Health</option>
+    <option value="lancet-digital-health">Lancet Digital Health</option>
+  </select>
+  <label>Window (years) · <span class="val" id="aff_years_v">5</span></label>
+  <input type="range" id="aff_years" min="1" max="20" value="5" oninput="aff_years_v.textContent=this.value">
+  <label>Threshold (min recent pubs) · <span class="val" id="aff_thr_v">2</span></label>
+  <input type="range" id="aff_thr" min="1" max="10" value="2" oninput="aff_thr_v.textContent=this.value">
+  <label>Limit · <span class="val" id="aff_lim_v">25</span></label>
+  <input type="range" id="aff_lim" min="1" max="100" value="25" oninput="aff_lim_v.textContent=this.value">
+  <button class="btn" onclick="runAff()">Run Analysis</button>
+  <div class="results" id="aff_res"></div>
+</div></div>
+
+<!-- Authors modal -->
+<div class="modal" id="authModal"><div class="mc" style="--c:#7c3aed">
+  <div class="mh"><h2>✍️ Author Rankings</h2><button class="x" onclick="closeModal('auth')">&times;</button></div>
+  <label>Institution (substring, optional)</label>
+  <input type="text" id="auth_inst" placeholder="Oxford, Harvard, Inserm…">
+  <label>Journal (optional)</label>
+  <select id="auth_journal">
+    <option value="">All Lancet journals</option>
+    <option value="lancet">The Lancet (flagship)</option>
+    <option value="lancet-neurology">Lancet Neurology</option>
+    <option value="lancet-oncology">Lancet Oncology</option>
+  </select>
+  <label>Limit · <span class="val" id="auth_lim_v">10</span></label>
+  <input type="range" id="auth_lim" min="1" max="100" value="10" oninput="auth_lim_v.textContent=this.value">
+  <button class="btn" onclick="runAuth()">Run Analysis</button>
+  <div class="results" id="auth_res"></div>
+</div></div>
+
+<footer>
+  The Lancet CLI × serve-mode analytics · <a href="https://github.com/laci141/thelancet-web" target="_blank" rel="noopener">GitHub</a>
+  · Powered by <a href="https://github.com/mvanhorn/printing-press-library" target="_blank" rel="noopener">Printing Press Library</a>
+</footer>
+
+<script>
+"use strict";
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num=n=>(Number(n)||0).toLocaleString();
+
+// restore saved form state
+(function(){try{const s=JSON.parse(localStorage.getItem("lancet_form")||"{}");
+  if(s.journal)$("#aff_journal").value=s.journal;
+  if(s.years){$("#aff_years").value=s.years;$("#aff_years_v").textContent=s.years;}
+  if(s.thr){$("#aff_thr").value=s.thr;$("#aff_thr_v").textContent=s.thr;}
+  if(s.inst)$("#auth_inst").value=s.inst;
+}catch(e){}})();
+function save(){localStorage.setItem("lancet_form",JSON.stringify({
+  journal:$("#aff_journal").value,years:$("#aff_years").value,thr:$("#aff_thr").value,inst:$("#auth_inst").value}));}
+
+function openModal(k){$("#"+k+"Modal").classList.add("active");}
+function closeModal(k){$("#"+k+"Modal").classList.remove("active");}
+document.querySelectorAll(".modal").forEach(m=>m.addEventListener("click",e=>{if(e.target===m)m.classList.remove("active");}));
+
+async function fetchJSON(url){
+  const r=await fetch(url);
+  const t=await r.text();
+  let d; try{d=JSON.parse(t);}catch(e){throw new Error("Non-JSON response (HTTP "+r.status+")");}
+  if(!r.ok) throw new Error((d&&d.error)||("HTTP "+r.status));
+  return d;
+}
+
+async function runAff(){
+  save();
+  const p=new URLSearchParams();
+  const j=$("#aff_journal").value; if(j)p.set("journal",j);
+  p.set("years",$("#aff_years").value); p.set("threshold",$("#aff_thr").value); p.set("limit",$("#aff_lim").value);
+  const res=$("#aff_res"); res.innerHTML='<span class="spin"></span> Computing…';
+  try{
+    const data=await fetchJSON("/affiliations?"+p.toString());
+    res.innerHTML=affTable(data,j);
+  }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
+}
+function affTable(rows,journal){
+  if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No institutions matched.</p>';
+  let h='<div class="meta">'+rows.length+' institutions'+(journal?' · '+esc(journal):' · all journals')+'</div>';
+  h+='<table><thead><tr><th>#</th><th>Institution</th><th>Recent</th><th>Prior</th><th>Growth</th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{h+='<tr><td class="n">'+(i+1)+'</td><td>'+esc(r.institution)+'</td>'+
+    '<td class="n">'+num(r.recent_count)+'</td><td class="n">'+num(r.prior_count)+'</td>'+
+    '<td class="n">'+(r.growth>=0?'+':'')+num(r.growth)+'</td></tr>';});
+  return h+'</tbody></table>';
+}
+
+async function runAuth(){
+  save();
+  const p=new URLSearchParams();
+  const inst=$("#auth_inst").value.trim(); if(inst)p.set("institution",inst);
+  const j=$("#auth_journal").value; if(j)p.set("journal",j);
+  p.set("limit",$("#auth_lim").value);
+  const res=$("#auth_res"); res.innerHTML='<span class="spin"></span> Computing…';
+  try{
+    const data=await fetchJSON("/authors?"+p.toString());
+    res.innerHTML=authTable(data,inst);
+  }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
+}
+function authTable(rows,inst){
+  if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No authors matched'+(inst?' for “'+esc(inst)+'”':'')+'.</p>';
+  let h='<div class="meta">'+rows.length+' authors'+(inst?' · '+esc(inst):'')+'</div>';
+  h+='<table><thead><tr><th>#</th><th>Author</th><th>Works</th><th>Citations</th><th>Avg</th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{h+='<tr><td class="n">'+(i+1)+'</td><td>'+esc(r.author_name)+'</td>'+
+    '<td class="n">'+num(r.works)+'</td><td class="n">'+num(r.total_citations)+'</td>'+
+    '<td class="n">'+num(r.avg_citations)+'</td></tr>';});
+  return h+'</tbody></table>';
+}
+</script>
+</body>
+</html>

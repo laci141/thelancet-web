@@ -1,0 +1,11 @@
+# The local mirror DB is 106 MB — over GitHub's 100 MB limit and not needed in
+# the repo (the Docker image builds its own via `refresh`). Never commit it.
+data.db
+*.db
+# Build scratch (regenerate with vendor-cli.sh).
+cli-src/
+# Windows-built binaries — local only.
+*.exe
+bin/server*
+# The linux CLI binary IS committed (image copies it): bin/thelancet-pp-cli-linux
+.DS_Store

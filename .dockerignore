@@ -1,0 +1,13 @@
+.git
+.gitignore
+.claude
+.DS_Store
+*.md
+# The 106 MB local dev DB is not shipped — the image refreshes its own snapshot.
+data.db
+*.db
+# Windows binaries can't run in the Linux image.
+*.exe
+bin/server*
+# Build scratch.
+cli-src/

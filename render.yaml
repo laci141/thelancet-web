@@ -1,0 +1,13 @@
+# Render Blueprint. Render builds the Docker image (which runs `thelancet refresh`
+# at build time to populate the mirror — this needs network to OpenAlex). The repo
+# must include the committed bin/thelancet-pp-cli-linux (regenerate with
+# ./vendor-cli.sh). Keyless: no secrets, no LLM.
+services:
+  - type: web
+    name: thelancet-web
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars: []
