@@ -55,6 +55,18 @@
     border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
   @keyframes spin{to{transform:rotate(360deg)}}
   .err{color:#ffb3b3}
+  .alink{color:inherit;text-decoration:none}
+  .alink:hover{text-decoration:underline}
+  .alink::after{content:" ↗";font-size:.78em;opacity:.55}
+  .bar-container{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .bar-number{font-weight:700;min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
+  .bar-chart{height:14px;background:linear-gradient(90deg,#00d4ff,#7c3aed);border-radius:4px;flex:1;max-width:150px;
+    opacity:.7;transition:opacity .2s}
+  .bar-chart:hover{opacity:1}
+  .growth-badge{padding:2px 7px;border-radius:4px;font-size:.85em;font-weight:700;white-space:nowrap}
+  .growth-positive{background:rgba(34,197,94,.2);color:#22c55e}
+  .growth-negative{background:rgba(239,68,68,.2);color:#ef4444}
+  .growth-new{background:rgba(59,130,246,.2);color:#3b82f6}
   footer{text-align:center;padding:2rem;color:#666;border-top:1px solid rgba(255,255,255,.05);font-size:.85rem}
   footer a{color:#00d4ff;text-decoration:none}footer a:hover{text-decoration:underline}
   @media(max-width:768px){.bento{grid-template-columns:1fr}.hero{min-height:auto;padding-top:3rem}}
@@ -163,11 +175,27 @@ async function runAff(){
 }
 function affTable(rows,journal){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No institutions matched.</p>';
+  // Scale bars to the largest recent_count in this result set (min 1 to avoid /0).
+  const maxRecent=Math.max(1,...rows.map(r=>Number(r.recent_count)||0));
   let h='<div class="meta">'+rows.length+' institutions'+(journal?' · '+esc(journal):' · all journals')+'</div>';
-  h+='<table><thead><tr><th>#</th><th>Institution</th><th>Recent</th><th>Prior</th><th>Growth</th></tr></thead><tbody>';
-  rows.forEach((r,i)=>{h+='<tr><td class="n">'+(i+1)+'</td><td>'+esc(r.institution)+'</td>'+
-    '<td class="n">'+num(r.recent_count)+'</td><td class="n">'+num(r.prior_count)+'</td>'+
-    '<td class="n">'+(r.growth>=0?'+':'')+num(r.growth)+'</td></tr>';});
+  h+='<table><thead><tr><th>#</th><th>Institution</th><th>Recent</th><th>Prior</th><th>Growth %</th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    const recent=Number(r.recent_count)||0, prior=Number(r.prior_count)||0;
+    // Growth %: new institution (no prior window) -> "New" badge; else signed %.
+    let growth;
+    if(prior===0){
+      growth='<span class="growth-badge growth-new">↑ New</span>';
+    }else{
+      const pct=Math.round((recent-prior)/prior*100);
+      const cls=pct>=0?'growth-positive':'growth-negative';
+      growth='<span class="growth-badge '+cls+'">'+(pct>=0?'+':'')+pct+'%</span>';
+    }
+    const barPct=Math.round(recent/maxRecent*100);
+    const bar='<div class="bar-container"><span class="bar-number">'+num(recent)+'</span>'+
+      '<div class="bar-chart" style="width:'+barPct+'%"></div></div>';
+    h+='<tr><td class="n">'+(i+1)+'</td><td>'+esc(r.institution)+'</td><td>'+bar+'</td>'+
+      '<td class="n">'+num(prior)+'</td><td>'+growth+'</td></tr>';
+  });
   return h+'</tbody></table>';
 }
 
@@ -183,11 +211,23 @@ async function runAuth(){
     res.innerHTML=authTable(data,inst);
   }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
 }
+// Build the author name cell: a link to the OpenAlex profile when author_id is a
+// valid OpenAlex ID (letter + digits), otherwise plain escaped text. author_name
+// is always esc()'d; author_id is only used in the href after the strict regex
+// match, so no unvalidated string is ever interpolated into the URL.
+function authorLink(r){
+  const name=esc(r.author_name);
+  const id=String(r.author_id==null?"":r.author_id);
+  if(/^[AWICSFP]\d+$/.test(id)){
+    return '<a class="alink" href="https://openalex.org/'+id+'" target="_blank" rel="noopener noreferrer">'+name+'</a>';
+  }
+  return name;
+}
 function authTable(rows,inst){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No authors matched'+(inst?' for “'+esc(inst)+'”':'')+'.</p>';
   let h='<div class="meta">'+rows.length+' authors'+(inst?' · '+esc(inst):'')+'</div>';
   h+='<table><thead><tr><th>#</th><th>Author</th><th>Works</th><th>Citations</th><th>Avg</th></tr></thead><tbody>';
-  rows.forEach((r,i)=>{h+='<tr><td class="n">'+(i+1)+'</td><td>'+esc(r.author_name)+'</td>'+
+  rows.forEach((r,i)=>{h+='<tr><td class="n">'+(i+1)+'</td><td>'+authorLink(r)+'</td>'+
     '<td class="n">'+num(r.works)+'</td><td class="n">'+num(r.total_citations)+'</td>'+
     '<td class="n">'+num(r.avg_citations)+'</td></tr>';});
   return h+'</tbody></table>';
