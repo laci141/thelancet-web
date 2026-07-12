@@ -1,11 +1,16 @@
-# The local mirror DB is 106 MB — over GitHub's 100 MB limit and not needed in
-# the repo (the Docker image builds its own via `refresh`). Never commit it.
-data.db
-*.db
+# data.db is now committed via Git LFS (35k Lancet works, real growth% data).
+# Only the large full-history backups stay local.
+data-full-228mb.db.bak
+data-116mb.bak
+data-before-vacuum.bak
+*.db.bak
+
 # Build scratch (regenerate with vendor-cli.sh).
 cli-src/
+
 # Windows-built binaries — local only.
 *.exe
 bin/server*
+
 # The linux CLI binary IS committed (image copies it): bin/thelancet-pp-cli-linux
 .DS_Store
