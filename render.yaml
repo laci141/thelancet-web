@@ -1,7 +1,9 @@
-# Render Blueprint. Render builds the Docker image (which runs `thelancet refresh`
-# at build time to populate the mirror — this needs network to OpenAlex). The repo
-# must include the committed bin/thelancet-pp-cli-linux (regenerate with
-# ./vendor-cli.sh). Keyless: no secrets, no LLM.
+# Render Blueprint. Render builds the Docker image, which COPIES the pre-built
+# mirror DB (data.db, ~117 MB) shipped via Git LFS — a full Lancet-family history
+# (35k works, 2005-2026) so the UI shows real growth% instead of "New" badges.
+# No build-time refresh, no OpenAlex network needed at build.
+# The repo must include the committed bin/thelancet-pp-cli-linux (regenerate with
+# ./vendor-cli.sh) and the LFS-tracked data.db. Keyless: no secrets, no LLM.
 services:
   - type: web
     name: thelancet-web
