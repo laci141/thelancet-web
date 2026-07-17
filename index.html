@@ -6,7 +6,7 @@
 <title>The Lancet Intelligence</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  html{scroll-behavior:smooth;font-size:130%}
+  html{scroll-behavior:smooth;font-size:160%}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
     background:#0b1020;color:#e8eef7;line-height:1.6;min-height:100vh}
 
@@ -21,25 +21,26 @@
   }
 
   .hero{display:flex;flex-direction:column;justify-content:center;align-items:center;
-    padding:2.5rem 2rem 1rem;text-align:center}
-  .hero h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:700;margin-bottom:.5rem;
+    padding:2.2rem 2rem .9rem;text-align:center}
+  .hero h1{font-size:clamp(2rem,5vw,3rem);font-weight:700;margin-bottom:.5rem;
     background:linear-gradient(90deg,#00d4ff,#7c3aed);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-  .hero p{font-size:1.05rem;color:#aab;max-width:60ch}
+  .hero p{font-size:1rem;color:#aab}
 
-  .bento{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;padding:.75rem 2rem 2.5rem;max-width:900px;margin:0 auto}
+  .bento{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;padding:.7rem 2rem 2.2rem;max-width:1150px;margin:0 auto}
 
-  /* GLASS-PANEL kártyák */
+  /* GLASS-PANEL kártyák — lapos fekvő téglalap, ikon balra, szöveg egy sorban */
   .card{background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.045));
-    border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:2.2rem;
-    cursor:pointer;transition:.3s;min-height:170px;display:flex;flex-direction:column;
-    justify-content:center;align-items:center;text-align:center;border-left:4px solid var(--c);
+    border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:1.1rem 1.5rem;
+    cursor:pointer;transition:.3s;min-height:96px;display:flex;flex-direction:row;gap:1rem;
+    justify-content:flex-start;align-items:center;text-align:left;border-left:4px solid var(--c);
     backdrop-filter:blur(15px);
     -webkit-backdrop-filter:blur(15px);
     box-shadow:0 18px 50px -18px rgba(0,0,0,.75)}
-  .card:hover{transform:translateY(-8px);border-color:rgba(255,255,255,.3);box-shadow:0 22px 60px -14px rgba(0,0,0,.8)}
-  .card .ic{font-size:3rem;margin-bottom:.8rem}
-  .card .lb{font-size:1.3rem;font-weight:600;color:var(--c)}
-  .card .sub{font-size:.85rem;color:#99a;margin-top:.4rem}
+  .card:hover{transform:translateY(-6px);border-color:rgba(255,255,255,.3);box-shadow:0 22px 60px -14px rgba(0,0,0,.8)}
+  .card .ic{font-size:2.3rem;line-height:1;flex-shrink:0}
+  .card .tx{display:flex;flex-direction:column;min-width:0}
+  .card .lb{font-size:1.2rem;font-weight:600;color:var(--c);white-space:nowrap}
+  .card .sub{font-size:.8rem;color:#99a;margin-top:.1rem;white-space:nowrap}
 
   .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);backdrop-filter:blur(6px);
     -webkit-backdrop-filter:blur(6px);
@@ -48,34 +49,35 @@
   @keyframes fade{from{opacity:0}to{opacity:1}}
   @keyframes slide{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
 
-  /* GLASS-PANEL modal */
+  /* GLASS-PANEL modal — széles, a táblázat görgetés nélkül elfér */
   .mc{background:linear-gradient(160deg, rgba(30,32,58,.82), rgba(22,24,46,.86));
-    border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:1.8rem;
-    width:880px;max-width:96%;max-height:90vh;overflow-y:auto;
+    border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:1.6rem 1.8rem;
+    width:1250px;max-width:97%;max-height:92vh;overflow-y:auto;
     box-shadow:0 25px 60px -15px rgba(0,0,0,.8);
     backdrop-filter:blur(15px);
     -webkit-backdrop-filter:blur(15px);
     animation:slide .3s ease;border-top:4px solid var(--c)}
-  .mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.2rem}
-  .mh h2{font-size:1.5rem;color:var(--c)}
+  .mh{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+  .mh h2{font-size:1.4rem;color:var(--c)}
   .x{background:none;border:none;color:#999;font-size:1.9rem;cursor:pointer;line-height:1}.x:hover{color:#fff}
-  label{display:block;font-size:.85rem;color:#ccd;margin:.9rem 0 .35rem;font-weight:500}
+  label{display:block;font-size:.82rem;color:#ccd;margin:.75rem 0 .3rem;font-weight:500}
   select,input[type=text]{width:100%;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.14);border-radius:.5rem;
-    padding:.7rem;color:#e8eef7;font-size:1rem}
+    padding:.6rem .7rem;color:#e8eef7;font-size:.95rem}
   select:focus,input[type=text]:focus{outline:none;border-color:var(--c)}
   select option{background:#1a1a2e}
   input[type=range]{width:100%;accent-color:var(--c)}
   .val{font-variant-numeric:tabular-nums;color:#fff;font-weight:700}
-  .btn{background:linear-gradient(90deg,#00d4ff,#7c3aed);border:none;color:#000;padding:.75rem 2rem;border-radius:.5rem;
-    font-weight:700;cursor:pointer;transition:.3s;font-size:1rem;margin-top:1.2rem;width:100%}
-  .btn:hover{transform:scale(1.02);box-shadow:0 8px 24px rgba(0,212,255,.3)}
-  .results{margin-top:1.4rem;animation:fade .3s ease}
-  table{width:100%;border-collapse:collapse;font-size:.9rem;display:block;overflow-x:auto}
-  th,td{text-align:left;padding:.55rem .8rem .55rem 0;border-bottom:1px solid rgba(255,255,255,.07);white-space:nowrap}
-  th{color:#9aa4bf;font-weight:600}
+  .btn{background:linear-gradient(90deg,#00d4ff,#7c3aed);border:none;color:#000;padding:.7rem 2rem;border-radius:.5rem;
+    font-weight:700;cursor:pointer;transition:.3s;font-size:1rem;margin-top:1.1rem;width:100%}
+  .btn:hover{transform:scale(1.01);box-shadow:0 8px 24px rgba(0,212,255,.3)}
+  .results{margin-top:1.3rem;animation:fade .3s ease}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  th,td{text-align:left;padding:.5rem .9rem .5rem 0;border-bottom:1px solid rgba(255,255,255,.07)}
+  th{color:#9aa4bf;font-weight:600;white-space:nowrap}
+  td{white-space:normal}
   tbody tr:hover{background:rgba(255,255,255,.04)}
-  td.n{font-variant-numeric:tabular-nums;text-align:right}
-  .meta{font-size:.85rem;color:#99a;margin-bottom:.6rem}
+  td.n{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  .meta{font-size:.82rem;color:#99a;margin-bottom:.6rem}
   .spin{display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--c);
     border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -83,34 +85,36 @@
   .alink{color:inherit;text-decoration:none}
   .alink:hover{text-decoration:underline}
   .alink::after{content:" ↗";font-size:.78em;opacity:.55}
-  .bar-container{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .bar-container{display:flex;align-items:center;gap:8px;justify-content:flex-end}
   .bar-number{font-weight:700;min-width:38px;text-align:right;font-variant-numeric:tabular-nums}
-  .bar-chart{height:14px;background:linear-gradient(90deg,#00d4ff,#7c3aed);border-radius:4px;flex:1;max-width:150px;
-    opacity:.7;transition:opacity .2s}
+  .bar-chart{height:13px;background:linear-gradient(90deg,#00d4ff,#7c3aed);border-radius:4px;width:90px;
+    opacity:.7;transition:opacity .2s;transform-origin:left}
   .bar-chart:hover{opacity:1}
 
-  /* Glass badge-ek (sötét témához, NEM pasztell) */
+  /* Glass badge-ek (sötét témához) */
   .badge-new{background:rgba(168,120,255,.18);color:#c9a8ff;border:1px solid rgba(168,120,255,.35);
-    padding:2px 10px;border-radius:999px;font-size:.78rem;font-weight:600;white-space:nowrap}
+    padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:600;white-space:nowrap}
   .badge-low{background:rgba(255,190,80,.15);color:#ffd28a;border:1px solid rgba(255,190,80,.35);
-    padding:2px 10px;border-radius:999px;font-size:.78rem;font-weight:600;white-space:nowrap}
-  .growth-badge{padding:2px 8px;border-radius:999px;font-size:.82rem;font-weight:700;white-space:nowrap}
+    padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:600;white-space:nowrap}
+  .growth-badge{padding:2px 8px;border-radius:999px;font-size:.8rem;font-weight:700;white-space:nowrap}
   .growth-positive{background:rgba(34,197,94,.18);color:#4ade80;border:1px solid rgba(34,197,94,.35)}
   .growth-negative{background:rgba(239,68,68,.18);color:#f87171;border:1px solid rgba(239,68,68,.35)}
 
-  .note{font-size:.8rem;color:rgba(255,255,255,.5);margin-top:1.2rem;line-height:1.5;white-space:normal}
+  .note{font-size:.78rem;color:rgba(255,255,255,.5);margin-top:1.1rem;line-height:1.5;white-space:normal}
 
-  footer{text-align:center;padding:2rem;color:#778;border-top:1px solid rgba(255,255,255,.05);font-size:.85rem}
+  footer{text-align:center;padding:1.8rem;color:#778;border-top:1px solid rgba(255,255,255,.05);font-size:.82rem}
   footer a{color:#00d4ff;text-decoration:none}footer a:hover{text-decoration:underline}
 
-  /* Mobil: kisebb blur + kevesebb padding (glass-panel szabály) */
+  /* Mobil: kisebb blur + kevesebb padding + kártyák egymás alatt */
   @media(max-width:768px){
-    html{font-size:115%}
-    .bento{grid-template-columns:1fr;padding:.5rem 1rem 2rem}
-    .hero{padding:2rem 1rem .75rem}
+    html{font-size:120%}
+    .bento{grid-template-columns:1fr;padding:.5rem 1rem 1.8rem}
+    .hero{padding:1.6rem 1rem .7rem}
+    .hero p br{display:none}
     .card{border-radius:16px;backdrop-filter:blur(11px);-webkit-backdrop-filter:blur(11px);
-      padding:1.6rem;box-shadow:0 12px 32px -14px rgba(0,0,0,.7)}
-    .mc{border-radius:16px;backdrop-filter:blur(11px);-webkit-backdrop-filter:blur(11px);padding:1.2rem}
+      padding:1rem 1.2rem;min-height:84px;box-shadow:0 12px 32px -14px rgba(0,0,0,.7)}
+    .mc{border-radius:16px;backdrop-filter:blur(11px);-webkit-backdrop-filter:blur(11px);padding:1.1rem}
+    table{display:block;overflow-x:auto}
   }
 </style>
 </head>
@@ -118,15 +122,18 @@
 
 <section class="hero">
   <h1>📊 The Lancet Intelligence</h1>
-  <p>Institutional research growth and author rankings across The Lancet journal family, computed from a local OpenAlex mirror — keyless, data-driven analytics.</p>
+  <p>Institutional research growth and author rankings across The Lancet journal family,<br>
+  computed from a local OpenAlex mirror — keyless, data-driven analytics.</p>
 </section>
 
 <section class="bento">
   <div class="card" style="--c:#00d4ff" onclick="openModal('aff')">
-    <div class="ic">👥</div><div class="lb">Affiliations</div><div class="sub">Institution growth</div>
+    <div class="ic">👥</div>
+    <div class="tx"><div class="lb">Affiliations</div><div class="sub">Institution growth</div></div>
   </div>
   <div class="card" style="--c:#7c3aed" onclick="openModal('auth')">
-    <div class="ic">✍️</div><div class="lb">Authors</div><div class="sub">Ranked by citations</div>
+    <div class="ic">✍️</div>
+    <div class="tx"><div class="lb">Authors</div><div class="sub">Ranked by citations</div></div>
   </div>
 </section>
 
@@ -227,25 +234,23 @@ function affTable(rows,journal){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No institutions matched.</p>';
   const maxRecent=Math.max(1,...rows.map(r=>Number(r.recent_count)||0));
   let h='<div class="meta">'+rows.length+' institutions'+(journal?' · '+esc(journal):' · all journals')+'</div>';
-  h+='<table><thead><tr><th>#</th><th>Institution</th><th>Recent</th><th>Prior</th><th>Growth</th></tr></thead><tbody>';
+  h+='<table><thead><tr><th>#</th><th>Institution</th><th style="text-align:right">Recent</th><th style="text-align:right">Prior</th><th>Growth</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{
     const recent=Number(r.recent_count)||0, prior=Number(r.prior_count)||0;
     let growth;
-    if(r.is_new){
+    if(r.is_new||prior===0){
       growth='<span class="badge-new">↑ New</span>';
     }else if(r.low_base){
       growth='<span class="badge-low">⚠️ low base</span>';
-    }else if(prior===0){
-      growth='<span class="badge-new">↑ New</span>';
     }else{
       const pct=Math.round((recent-prior)/prior*100);
       const cls=pct>=0?'growth-positive':'growth-negative';
       growth='<span class="growth-badge '+cls+'">'+(pct>=0?'+':'')+pct+'%</span>';
     }
-    const barPct=Math.round(recent/maxRecent*100);
+    const barPct=Math.max(4,Math.round(recent/maxRecent*100));
     const bar='<div class="bar-container"><span class="bar-number">'+num(recent)+'</span>'+
-      '<div class="bar-chart" style="width:'+barPct+'%"></div></div>';
-    h+='<tr><td class="n">'+(i+1)+'</td><td>'+esc(r.institution)+'</td><td>'+bar+'</td>'+
+      '<div class="bar-chart" style="transform:scaleX('+(barPct/100)+')"></div></div>';
+    h+='<tr><td class="n">'+(i+1)+'</td><td>'+esc(r.institution)+'</td><td class="n">'+bar+'</td>'+
       '<td class="n">'+num(prior)+'</td><td>'+growth+'</td></tr>';
   });
   h+='</tbody></table>';
@@ -265,8 +270,7 @@ async function runAuth(){
     res.innerHTML=authTable(data,inst);
   }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
 }
-// Build the author name cell: a link to the OpenAlex profile when author_id is a
-// valid OpenAlex ID (letter + digits), otherwise plain escaped text.
+// Author name cell: OpenAlex profile link when author_id is a valid ID.
 function authorLink(r){
   const name=esc(r.author_name);
   const id=String(r.author_id==null?"":r.author_id);
@@ -278,7 +282,7 @@ function authorLink(r){
 function authTable(rows,inst){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No authors matched'+(inst?' for "'+esc(inst)+'"':'')+'.</p>';
   let h='<div class="meta">'+rows.length+' authors'+(inst?' · '+esc(inst):'')+'</div>';
-  h+='<table><thead><tr><th>#</th><th>Author</th><th>Works</th><th>Citations</th><th>Avg</th></tr></thead><tbody>';
+  h+='<table><thead><tr><th>#</th><th>Author</th><th style="text-align:right">Works</th><th style="text-align:right">Citations</th><th style="text-align:right">Avg</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{h+='<tr><td class="n">'+(i+1)+'</td><td>'+authorLink(r)+'</td>'+
     '<td class="n">'+num(r.works)+'</td><td class="n">'+num(r.total_citations)+'</td>'+
     '<td class="n">'+num(r.avg_citations)+'</td></tr>';});
