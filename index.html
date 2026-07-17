@@ -26,7 +26,7 @@
     background:linear-gradient(90deg,#00d4ff,#7c3aed);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .hero p{font-size:1rem;color:#aab}
 
-  .bento{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;padding:.7rem 2rem 2.2rem;max-width:1000px;margin:0 auto}
+  .bento{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;padding:.7rem 2rem 2.2rem;max-width:1400px;margin:0 auto}
 
   /* GLASS-PANEL kártyák — lapos fekvő téglalap, ikon balra, szöveg egy sorban */
   .card{background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.045));
@@ -117,6 +117,12 @@
     padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600;white-space:nowrap}
   .badge-checking{color:#889;font-size:.72rem;font-style:italic}
 
+  /* Rising Papers — velocity badge (citations per year) */
+  .badge-velocity{background:rgba(56,189,248,.18);color:#7dd3fc;border:1px solid rgba(56,189,248,.40);
+    padding:2px 10px;border-radius:999px;font-size:.8rem;font-weight:700;white-space:nowrap;
+    font-variant-numeric:tabular-nums}
+  .year-pill{color:#99a;font-size:.78rem;font-variant-numeric:tabular-nums}
+
   /* Drift / Topic Trends — diverging bar chart */
   .drift-row{display:grid;grid-template-columns:1fr 34px 1fr;align-items:center;gap:10px;
     padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.05)}
@@ -177,6 +183,10 @@
   <div class="card" style="--c:#38bdf8" onclick="openModal('read')">
     <div class="ic">📚</div>
     <div class="tx"><div class="lb">Reading List</div><div class="sub">Ranked + retraction-checked</div></div>
+  </div>
+  <div class="card" style="--c:#f59e0b" onclick="openModal('rise')">
+    <div class="ic">🚀</div>
+    <div class="tx"><div class="lb">Rising Papers</div><div class="sub">Fastest-cited fresh work</div></div>
   </div>
 </section>
 
@@ -276,6 +286,35 @@
   <div class="results" id="read_res"></div>
 </div></div>
 
+<!-- Rising Papers modal -->
+<div class="modal" id="riseModal"><div class="mc" style="--c:#f59e0b">
+  <div class="mh"><h2>🚀 Rising Papers</h2><button class="x" onclick="closeModal('rise')">&times;</button></div>
+  <label>Topic / keyword</label>
+  <input type="text" id="rise_topic" placeholder="e.g. immunotherapy, mRNA, AI diagnosis…">
+  <div class="row2">
+    <div>
+      <label>Journal (optional — A: all, B: one)</label>
+      <select id="rise_journal">
+        <option value="">All Lancet journals</option>
+        <option value="lancet">The Lancet (flagship)</option>
+        <option value="lancet-neurology">Lancet Neurology</option>
+        <option value="lancet-oncology">Lancet Oncology</option>
+        <option value="lancet-infectious-diseases">Lancet Infectious Diseases</option>
+        <option value="lancet-public-health">Lancet Public Health</option>
+        <option value="lancet-digital-health">Lancet Digital Health</option>
+      </select>
+    </div>
+    <div>
+      <label>Pool size · <span class="val" id="rise_lim_v">40</span></label>
+      <input type="range" id="rise_lim" min="10" max="60" value="40" oninput="rise_lim_v.textContent=this.value">
+    </div>
+  </div>
+  <label>Min year (only papers from this year on) · <span class="val" id="rise_year_v">2018</span></label>
+  <input type="range" id="rise_year" min="2005" max="2024" value="2018" oninput="rise_year_v.textContent=this.value">
+  <button class="btn" onclick="runRise()">Find Rising Papers</button>
+  <div class="results" id="rise_res"></div>
+</div></div>
+
 <footer>
   The Lancet CLI × serve-mode analytics · <a href="https://github.com/laci141/thelancet-web" target="_blank" rel="noopener">GitHub</a>
   · Powered by <a href="https://github.com/mvanhorn/printing-press-library" target="_blank" rel="noopener">Printing Press Library</a>
@@ -286,9 +325,10 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num=n=>(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:1});
+const CUR_YEAR=new Date().getFullYear();
 
 // Az utolsó lekérdezések nyers JSON-adata modulonként — a ⬇ JSON gombhoz.
-const lastData={aff:null,auth:null,drift:null,read:null};
+const lastData={aff:null,auth:null,drift:null,read:null,rise:null};
 
 function downloadJSON(key,filename){
   const d=lastData[key];
@@ -320,11 +360,14 @@ function setW2(y){y=Number(y);$("#drift_w2_v").textContent=y+"–"+(y+4);}
   if(s.minw){$("#auth_minw").value=s.minw;$("#auth_minw_v").textContent=s.minw;}
   if(s.djournal)$("#drift_journal").value=s.djournal;
   if(s.rtopic)$("#read_topic").value=s.rtopic;
+  if(s.ritopic)$("#rise_topic").value=s.ritopic;
+  if(s.rijournal)$("#rise_journal").value=s.rijournal;
 }catch(e){}})();
 function save(){localStorage.setItem("lancet_form",JSON.stringify({
   journal:$("#aff_journal").value,years:$("#aff_years").value,thr:$("#aff_thr").value,
   minp:$("#aff_minp").value,inst:$("#auth_inst").value,minw:$("#auth_minw").value,
-  djournal:$("#drift_journal").value,rtopic:$("#read_topic").value}));}
+  djournal:$("#drift_journal").value,rtopic:$("#read_topic").value,
+  ritopic:$("#rise_topic").value,rijournal:$("#rise_journal").value}));}
 
 function openModal(k){$("#"+k+"Modal").classList.add("active");}
 function closeModal(k){$("#"+k+"Modal").classList.remove("active");}
@@ -470,10 +513,6 @@ function driftChart(rows,journal,w1,w2){
 }
 
 // ── Reading List + retraction check ─────────────────────────────────────────
-// 1) /curate builds the ranked list. 2) each paper's DOI is checked against the
-// retraction-checker via /check?doi=…, concurrently but capped, updating badges
-// in place as each result lands. Each check has a 15s client-side timeout so a
-// slow API response can't leave a row stuck on "checking…" forever.
 async function runRead(){
   save();
   const topic=$("#read_topic").value.trim();
@@ -486,11 +525,10 @@ async function runRead(){
     const rows=Array.isArray(data)?data:(data.works||data.results||[]);
     lastData.read=rows;
     res.innerHTML=readTable(rows,topic);
-    checkRetractions(rows);
+    checkRetractions(rows,"st-");
   }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
 }
 
-// Pull a DOI out of whatever field the CLI used.
 function paperDOI(r){
   let d=r.doi||r.DOI||r.doi_url||"";
   d=String(d).replace(/^https?:\/\/(dx\.)?doi\.org\//i,"").trim();
@@ -498,6 +536,7 @@ function paperDOI(r){
 }
 function paperTitle(r){return esc(r.title||r.display_name||r.name||"(untitled)");}
 function paperCitations(r){return Number(r.cited_by_count||r.citations||r.total_citations||0);}
+function paperYear(r){return Number(r.year||r.publication_year||0);}
 
 function readTable(rows,topic){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No papers found for "'+esc(topic)+'".</p>';
@@ -507,7 +546,7 @@ function readTable(rows,topic){
   rows.forEach((r,i)=>{
     const doi=paperDOI(r);
     const doiLink=doi?'<br><a class="alink" href="https://doi.org/'+encodeURIComponent(doi)+'" target="_blank" rel="noopener noreferrer" style="font-size:.78em;opacity:.7">'+esc(doi)+'</a>':'';
-    const status=doi?'<span class="badge-checking" id="chk-'+i+'">checking…</span>':'<span class="badge-checking">no DOI</span>';
+    const status=doi?'<span class="badge-checking" id="st-'+i+'">checking…</span>':'<span class="badge-checking">no DOI</span>';
     h+='<tr><td class="n">'+(i+1)+'</td><td>'+paperTitle(r)+doiLink+'</td>'+
       '<td class="n">'+num(paperCitations(r))+'</td><td id="st-'+i+'">'+status+'</td></tr>';
   });
@@ -516,9 +555,63 @@ function readTable(rows,topic){
   return h;
 }
 
-// Check each DOI, at most 4 in flight at once, updating the row's status cell.
+// ── Rising Papers ───────────────────────────────────────────────────────────
+// Uses the same /curate feed, then re-ranks by citation velocity
+// (cited_by_count / paper age in years). A fresh paper with many citations beats
+// an old classic. Journal empty = mode A (all journals); journal set = mode B.
+async function runRise(){
+  save();
+  const topic=$("#rise_topic").value.trim();
+  if(!topic){$("#rise_res").innerHTML='<p class="err">Please enter a topic.</p>';return;}
+  const minYear=Number($("#rise_year").value);
+  const p=new URLSearchParams();
+  p.set("topic",topic);
+  const j=$("#rise_journal").value; if(j)p.set("journal",j);
+  p.set("sort","citations"); p.set("limit",$("#rise_lim").value);
+  const res=$("#rise_res"); res.innerHTML='<span class="spin"></span> Finding rising papers…';
+  try{
+    const data=await fetchJSON("/curate?"+p.toString());
+    const rows=Array.isArray(data)?data:(data.works||data.results||[]);
+    // Compute velocity, keep only papers from minYear on, sort by velocity desc.
+    const enriched=rows.map(r=>{
+      const yr=paperYear(r), cites=paperCitations(r);
+      const age=Math.max(1,CUR_YEAR-yr+1);
+      return {r,yr,cites,velocity:(yr>0?cites/age:0)};
+    }).filter(x=>x.yr>=minYear && x.yr>0)
+      .sort((a,b)=>b.velocity-a.velocity);
+    lastData.rise=enriched.map(x=>({title:x.r.title,doi:paperDOI(x.r),year:x.yr,
+      cited_by_count:x.cites,citations_per_year:Math.round(x.velocity*10)/10}));
+    res.innerHTML=riseTable(enriched,topic,j,minYear);
+    checkRetractions(enriched.map(x=>x.r),"rst-");
+  }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
+}
+function riseTable(items,topic,journal,minYear){
+  if(!items.length) return '<p class="meta">No papers from '+minYear+' on for "'+esc(topic)+'"'+
+    (journal?' in '+esc(journal):'')+'. Try a lower min year or a broader topic.</p>';
+  const scope=journal?esc(journal):'all journals';
+  let h=metaRow(items.length+' rising papers · "'+esc(topic)+'" · '+scope+' · from '+minYear,
+    'rise','lancet-rising-papers.json');
+  h+='<table><thead><tr><th>#</th><th>Title</th><th style="text-align:right">Year</th>'+
+    '<th style="text-align:right">Cites</th><th style="text-align:right">Cites/yr</th><th>Status</th></tr></thead><tbody>';
+  items.forEach((x,i)=>{
+    const r=x.r, doi=paperDOI(r);
+    const doiLink=doi?'<br><a class="alink" href="https://doi.org/'+encodeURIComponent(doi)+'" target="_blank" rel="noopener noreferrer" style="font-size:.78em;opacity:.7">'+esc(doi)+'</a>':'';
+    const vel='<span class="badge-velocity">'+num(x.velocity)+'</span>';
+    const status=doi?'<span class="badge-checking" id="rst-'+i+'">checking…</span>':'<span class="badge-checking">no DOI</span>';
+    h+='<tr><td class="n">'+(i+1)+'</td><td>'+paperTitle(r)+doiLink+'</td>'+
+      '<td class="n"><span class="year-pill">'+x.yr+'</span></td>'+
+      '<td class="n">'+num(x.cites)+'</td><td class="n">'+vel+'</td>'+
+      '<td id="rst-'+i+'">'+status+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  h+='<p class="note">Cites/yr = total citations ÷ paper age (years since publication). A high value means the paper is accumulating citations fast — a "rising" signal, not just a lifetime total. Retraction status checked live (keyless).</p>';
+  return h;
+}
+
+// ── Shared retraction check ─────────────────────────────────────────────────
+// Check each DOI, at most 4 in flight at once, updating cells with id prefix+i.
 // Each /check call is capped at 20s; on timeout or error the row shows "unverified".
-async function checkRetractions(rows){
+async function checkRetractions(rows,prefix){
   const queue=rows.map((r,i)=>({i,doi:paperDOI(r)})).filter(x=>x.doi);
   let active=0, idx=0;
   return new Promise(resolve=>{
@@ -528,7 +621,7 @@ async function checkRetractions(rows){
         const {i,doi}=queue[idx++]; active++;
         fetchJSONTimeout("/check?doi="+encodeURIComponent(doi),20000)
           .then(res=>{
-            const cell=$("#st-"+i); if(!cell)return;
+            const cell=$("#"+prefix+i); if(!cell)return;
             if(res && res.retracted===true){
               cell.innerHTML='<span class="badge-retracted">⚠️ RETRACTED</span>';
             }else if(res && res.error){
@@ -537,7 +630,7 @@ async function checkRetractions(rows){
               cell.innerHTML='<span class="badge-ok">✓ clean</span>';
             }
           })
-          .catch(()=>{const cell=$("#st-"+i); if(cell)cell.innerHTML='<span class="badge-checking">unverified</span>';})
+          .catch(()=>{const cell=$("#"+prefix+i); if(cell)cell.innerHTML='<span class="badge-checking">unverified</span>';})
           .finally(()=>{active--;next();});
       }
     }

@@ -1,5 +1,5 @@
-// Command thelancet-web serves a single-page UI plus four JSON endpoints:
-// GET /affiliations, GET /authors, GET /drift, and GET /curate, that mirror the
+// Command thelancet-web serves a single-page UI plus five JSON endpoints:
+// GET /affiliations, /authors, /drift, /curate, and /check, that mirror the
 // thelancet CLI's analytics commands. The /check endpoint integrates the
 // retraction-checker CLI for batch verification. All endpoints are read-only and
 // keyless (analytics take no LLM key). Query params are whitelisted and passed
@@ -9,7 +9,10 @@
 //   - /authors:      minWorks filter removes single-consortium-paper authors.
 //   - /affiliations: minPrior grouping moves institutions with tiny prior base.
 //   - /drift:        passes through topic-share deltas between year windows.
-//   - /curate:       ranked reading lists for topics; /check verifies retraction status.
+//   - /curate:       ranked reading lists for a topic, optionally scoped to a
+//     journal; also feeds the Rising Papers view (citations-per-year is computed
+//     client-side from the year + cited_by_count fields).
+//   - /check:        verifies retraction status via the retraction-checker CLI.
 package main
 
 import (
@@ -244,8 +247,10 @@ func handleDrift(w http.ResponseWriter, r *http.Request) {
 	writeRaw(w, raw)
 }
 
-// handleCurate mirrors GET /curate?topic=&sort=&limit=.
-// Returns a ranked reading list (title, DOI, citations, etc) for a topic.
+// handleCurate mirrors GET /curate?topic=&journal=&sort=&limit=.
+// Returns a ranked reading list (title, DOI, year, citations, etc) for a topic,
+// optionally scoped to a single journal. Powers both the Reading List module
+// and the Rising Papers module (which re-ranks the same rows by citations/year).
 func handleCurate(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	topic := strings.TrimSpace(q.Get("topic"))
@@ -262,6 +267,9 @@ func handleCurate(w http.ResponseWriter, r *http.Request) {
 
 	args := []string{"curate", "--topic", topic, "--json", "--db", dbPath(),
 		"--limit", strconv.Itoa(limit)}
+	if j := strings.TrimSpace(q.Get("journal")); j != "" {
+		args = append(args, "--journal", j)
+	}
 	if s := strings.TrimSpace(q.Get("sort")); s != "" {
 		args = append(args, "--sort", s)
 	}
