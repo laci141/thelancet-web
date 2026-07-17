@@ -338,6 +338,19 @@ async function fetchJSON(url){
   return d;
 }
 
+// fetchJSON with a client-side timeout so a slow /check can't hang forever.
+async function fetchJSONTimeout(url,ms){
+  const ctrl=new AbortController();
+  const t=setTimeout(()=>ctrl.abort(),ms);
+  try{
+    const r=await fetch(url,{signal:ctrl.signal});
+    const txt=await r.text();
+    let d; try{d=JSON.parse(txt);}catch(e){throw new Error("Non-JSON response (HTTP "+r.status+")");}
+    if(!r.ok) throw new Error((d&&d.error)||("HTTP "+r.status));
+    return d;
+  }finally{clearTimeout(t);}
+}
+
 async function runAff(){
   save();
   const p=new URLSearchParams();
@@ -459,7 +472,8 @@ function driftChart(rows,journal,w1,w2){
 // ── Reading List + retraction check ─────────────────────────────────────────
 // 1) /curate builds the ranked list. 2) each paper's DOI is checked against the
 // retraction-checker via /check?doi=…, concurrently but capped, updating badges
-// in place as each result lands (no blocking the whole table).
+// in place as each result lands. Each check has a 15s client-side timeout so a
+// slow API response can't leave a row stuck on "checking…" forever.
 async function runRead(){
   save();
   const topic=$("#read_topic").value.trim();
@@ -503,6 +517,7 @@ function readTable(rows,topic){
 }
 
 // Check each DOI, at most 4 in flight at once, updating the row's status cell.
+// Each /check call is capped at 15s; on timeout or error the row shows "unverified".
 async function checkRetractions(rows){
   const queue=rows.map((r,i)=>({i,doi:paperDOI(r)})).filter(x=>x.doi);
   let active=0, idx=0;
@@ -511,7 +526,7 @@ async function checkRetractions(rows){
       if(idx>=queue.length && active===0){resolve();return;}
       while(active<4 && idx<queue.length){
         const {i,doi}=queue[idx++]; active++;
-        fetchJSON("/check?doi="+encodeURIComponent(doi))
+        fetchJSONTimeout("/check?doi="+encodeURIComponent(doi),15000)
           .then(res=>{
             const cell=$("#st-"+i); if(!cell)return;
             if(res && res.retracted===true){
