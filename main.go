@@ -1,23 +1,15 @@
-// Command thelancet-web serves a single-page UI plus three JSON endpoints,
-// GET /affiliations, GET /authors and GET /drift, that mirror the thelancet
-// CLI's analytics commands. Rather than proxying a subprocess `serve` (which
-// binds loopback only and serves no static files), it shells out to the
-// equivalent analytics commands (`affiliation-growth` / `rank-authors` / `drift`
-// --json) against a local mirror DB. This keeps the UI and API same-origin on
-// one port — the shape Render deploys.
-//
-// The endpoints are read-only and keyless (thelancet analytics take no LLM key).
-// Query params are whitelisted and passed as discrete argv elements (no shell),
-// so untrusted input can never inject flags or commands.
+// Command thelancet-web serves a single-page UI plus four JSON endpoints:
+// GET /affiliations, GET /authors, GET /drift, and GET /curate, that mirror the
+// thelancet CLI's analytics commands. The /check endpoint integrates the
+// retraction-checker CLI for batch verification. All endpoints are read-only and
+// keyless (analytics take no LLM key). Query params are whitelisted and passed
+// as discrete argv elements (no shell).
 //
 // Post-processing (done here, not in the CLI):
-//   - /authors:      minWorks filter (default 2) removes single-consortium-paper
-//     authors (e.g. Global Burden of Disease papers with 500+ co-authors).
-//   - /affiliations: minPrior grouping (default 5) moves institutions with a
-//     tiny prior-window base to the bottom, flagged low_base / is_new, so a
-//     1 -> 22 jump can't show up as a misleading "+2100%".
-//   - /drift:        passes through the CLI's topic-share deltas between two
-//     publication-year windows; windows are validated as strict YYYY:YYYY.
+//   - /authors:      minWorks filter removes single-consortium-paper authors.
+//   - /affiliations: minPrior grouping moves institutions with tiny prior base.
+//   - /drift:        passes through topic-share deltas between year windows.
+//   - /curate:       ranked reading lists for topics; /check verifies retraction status.
 package main
 
 import (
@@ -48,6 +40,22 @@ func cliBinaryPath() string {
 	return filepath.Join("bin", name)
 }
 
+func retractionCheckerBinaryPath() string {
+	if p := strings.TrimSpace(os.Getenv("RETRACTION_CHECKER_BIN")); p != "" {
+		return p
+	}
+	name := "retraction-checker-pp-cli"
+	if runtime.GOOS == "windows" {
+		name += ".exe"
+	}
+	// Try local submodule path first, then system PATH.
+	local := filepath.Join("bin", name)
+	if _, err := os.Stat(local); err == nil {
+		return local
+	}
+	return name // Fall back to PATH.
+}
+
 // dbPath is the mirror the analytics commands read (populated by `refresh`).
 func dbPath() string {
 	if p := strings.TrimSpace(os.Getenv("THELANCET_DB")); p != "" {
@@ -66,6 +74,8 @@ func main() {
 	mux.HandleFunc("/affiliations", handleAffiliations)
 	mux.HandleFunc("/authors", handleAuthors)
 	mux.HandleFunc("/drift", handleDrift)
+	mux.HandleFunc("/curate", handleCurate)
+	mux.HandleFunc("/check", handleCheck)
 
 	addr := "127.0.0.1:8080"
 	if a := strings.TrimSpace(os.Getenv("ADDR")); a != "" {
@@ -95,9 +105,6 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAffiliations mirrors GET /affiliations?journal=&years=&threshold=&limit=&minPrior=.
-// minPrior does NOT drop rows: institutions whose prior-window count is below it
-// keep their data but are flagged (low_base, is_new when prior==0) and moved to
-// the bottom of the list, so growth % stays meaningful at the top.
 func handleAffiliations(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	minPrior, err := optInt(q.Get("minPrior"), 5, 0, 20)
@@ -136,7 +143,6 @@ func handleAffiliations(w http.ResponseWriter, r *http.Request) {
 
 	var rows []map[string]any
 	if json.Unmarshal(raw, &rows) != nil {
-		// Unexpected shape (e.g. error object) — pass through unchanged.
 		writeRaw(w, raw)
 		return
 	}
@@ -158,9 +164,6 @@ func handleAffiliations(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAuthors mirrors GET /authors?institution=&journal=&limit=&minWorks=.
-// minWorks (default 2) filters out authors below the works threshold BEFORE the
-// final limit is applied; the CLI is over-fetched (limit*5, capped at 500) so
-// the response can still fill the requested limit after filtering.
 func handleAuthors(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	minWorks, err := optInt(q.Get("minWorks"), 2, 1, 10)
@@ -211,11 +214,6 @@ func handleAuthors(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleDrift mirrors GET /drift?journal=&window1=&window2=&topN=.
-// The CLI's `drift` command compares a journal's topic mix between two
-// publication-year windows (YYYY:YYYY); positive delta_share = rising in the
-// later window. window1/window2 are validated against a strict YYYY:YYYY shape
-// so untrusted input can't inject other flags; topN is range-checked. Output
-// passes through unchanged (array of {topic, window1_share, window2_share, delta_share}).
 func handleDrift(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
@@ -241,6 +239,85 @@ func handleDrift(w http.ResponseWriter, r *http.Request) {
 	raw, err := runCLIRaw(r.Context(), args)
 	if err != nil {
 		writeErr(w, err)
+		return
+	}
+	writeRaw(w, raw)
+}
+
+// handleCurate mirrors GET /curate?topic=&sort=&limit=.
+// Returns a ranked reading list (title, DOI, citations, etc) for a topic.
+func handleCurate(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	topic := strings.TrimSpace(q.Get("topic"))
+	if topic == "" {
+		writeErr(w, errors.New("topic parameter required"))
+		return
+	}
+
+	limit, err := optInt(q.Get("limit"), 25, 1, 100)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+
+	args := []string{"curate", "--topic", topic, "--json", "--db", dbPath(),
+		"--limit", strconv.Itoa(limit)}
+	if s := strings.TrimSpace(q.Get("sort")); s != "" {
+		args = append(args, "--sort", s)
+	}
+
+	raw, err := runCLIRaw(r.Context(), args)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeRaw(w, raw)
+}
+
+// handleCheck mirrors GET /check?doi= or /check?pmid=.
+// Calls the retraction-checker CLI and returns retraction status.
+func handleCheck(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	doi := strings.TrimSpace(q.Get("doi"))
+	pmid := strings.TrimSpace(q.Get("pmid"))
+
+	if doi == "" && pmid == "" {
+		writeErr(w, errors.New("doi or pmid parameter required"))
+		return
+	}
+
+	args := []string{"check", "--json"}
+	if doi != "" {
+		args = append(args, doi)
+	} else {
+		args = append(args, pmid)
+	}
+
+	// 10-second timeout for retraction check (faster than CLI analytics).
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	// #nosec G204 -- fixed subcommand; doi/pmid are untrusted but passed safely.
+	cmd := exec.CommandContext(ctx, retractionCheckerBinaryPath(), args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		// If retraction-checker is not found or fails, return a safe fallback.
+		writeJSONValue(w, map[string]any{
+			"retracted": false,
+			"error":     "retraction-checker unavailable",
+		})
+		return
+	}
+
+	raw := bytes.TrimSpace(stdout.Bytes())
+	if !json.Valid(raw) {
+		writeJSONValue(w, map[string]any{
+			"retracted": false,
+			"error":     "invalid JSON from checker",
+		})
 		return
 	}
 	writeRaw(w, raw)
@@ -310,7 +387,7 @@ func jsonInt(v any) int {
 	return 0
 }
 
-// runCLIRaw executes the CLI and returns its validated JSON stdout.
+// runCLIRaw executes the thelancet CLI and returns its validated JSON stdout.
 func runCLIRaw(parent context.Context, args []string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(parent, 60*time.Second)
 	defer cancel()

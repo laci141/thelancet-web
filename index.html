@@ -26,7 +26,7 @@
     background:linear-gradient(90deg,#00d4ff,#7c3aed);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .hero p{font-size:1rem;color:#aab}
 
-  .bento{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;padding:.7rem 2rem 2.2rem;max-width:1400px;margin:0 auto}
+  .bento{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;padding:.7rem 2rem 2.2rem;max-width:1000px;margin:0 auto}
 
   /* GLASS-PANEL kártyák — lapos fekvő téglalap, ikon balra, szöveg egy sorban */
   .card{background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.045));
@@ -110,8 +110,14 @@
   .growth-positive{background:rgba(34,197,94,.18);color:#4ade80;border:1px solid rgba(34,197,94,.35)}
   .growth-negative{background:rgba(239,68,68,.18);color:#f87171;border:1px solid rgba(239,68,68,.35)}
 
-  /* Drift / Topic Trends — diverging bar chart.
-     A sávok max 55%-ig nőhetnek, így a topic-név + szám MINDIG kifér a sorban. */
+  /* Retraction badge-ek */
+  .badge-retracted{background:rgba(239,68,68,.20);color:#f87171;border:1px solid rgba(239,68,68,.45);
+    padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:700;white-space:nowrap}
+  .badge-ok{background:rgba(34,197,94,.15);color:#4ade80;border:1px solid rgba(34,197,94,.30);
+    padding:2px 10px;border-radius:999px;font-size:.72rem;font-weight:600;white-space:nowrap}
+  .badge-checking{color:#889;font-size:.72rem;font-style:italic}
+
+  /* Drift / Topic Trends — diverging bar chart */
   .drift-row{display:grid;grid-template-columns:1fr 34px 1fr;align-items:center;gap:10px;
     padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.05)}
   .drift-left{display:flex;justify-content:flex-end;align-items:center;gap:8px;min-width:0}
@@ -167,6 +173,10 @@
   <div class="card" style="--c:#22c55e" onclick="openModal('drift')">
     <div class="ic">📈</div>
     <div class="tx"><div class="lb">Topic Trends</div><div class="sub">Rising &amp; fading themes</div></div>
+  </div>
+  <div class="card" style="--c:#38bdf8" onclick="openModal('read')">
+    <div class="ic">📚</div>
+    <div class="tx"><div class="lb">Reading List</div><div class="sub">Ranked + retraction-checked</div></div>
   </div>
 </section>
 
@@ -244,6 +254,28 @@
   <div class="results" id="drift_res"></div>
 </div></div>
 
+<!-- Reading List (curate + retraction) modal -->
+<div class="modal" id="readModal"><div class="mc" style="--c:#38bdf8">
+  <div class="mh"><h2>📚 Reading List</h2><button class="x" onclick="closeModal('read')">&times;</button></div>
+  <label>Topic / keyword</label>
+  <input type="text" id="read_topic" placeholder="e.g. immunotherapy, gene therapy, COVID-19…">
+  <div class="row2">
+    <div>
+      <label>Sort by</label>
+      <select id="read_sort">
+        <option value="citations" selected>Citations</option>
+        <option value="date">Date (newest)</option>
+      </select>
+    </div>
+    <div>
+      <label>Limit · <span class="val" id="read_lim_v">15</span></label>
+      <input type="range" id="read_lim" min="5" max="40" value="15" oninput="read_lim_v.textContent=this.value">
+    </div>
+  </div>
+  <button class="btn" onclick="runRead()">Build Reading List</button>
+  <div class="results" id="read_res"></div>
+</div></div>
+
 <footer>
   The Lancet CLI × serve-mode analytics · <a href="https://github.com/laci141/thelancet-web" target="_blank" rel="noopener">GitHub</a>
   · Powered by <a href="https://github.com/mvanhorn/printing-press-library" target="_blank" rel="noopener">Printing Press Library</a>
@@ -256,9 +288,8 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const num=n=>(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:1});
 
 // Az utolsó lekérdezések nyers JSON-adata modulonként — a ⬇ JSON gombhoz.
-const lastData={aff:null,auth:null,drift:null};
+const lastData={aff:null,auth:null,drift:null,read:null};
 
-// JSON-letöltés: az adott modul utolsó eredményét fájlként menti le.
 function downloadJSON(key,filename){
   const d=lastData[key];
   if(!d){alert("Run an analysis first.");return;}
@@ -271,13 +302,11 @@ function downloadJSON(key,filename){
   URL.revokeObjectURL(url);
 }
 
-// Egységes eredmény-fejléc: bal oldalt a meta-szöveg, jobb oldalt a ⬇ JSON gomb.
 function metaRow(text,key,filename){
   return '<div class="meta-row"><span class="meta">'+text+'</span>'+
     '<button class="dl" onclick="downloadJSON(\''+key+'\',\''+filename+'\')">⬇ JSON</button></div>';
 }
 
-// Each window is a fixed 5-year span starting at the slider value.
 function setW1(y){y=Number(y);$("#drift_w1_v").textContent=y+"–"+(y+4);}
 function setW2(y){y=Number(y);$("#drift_w2_v").textContent=y+"–"+(y+4);}
 
@@ -290,11 +319,12 @@ function setW2(y){y=Number(y);$("#drift_w2_v").textContent=y+"–"+(y+4);}
   if(s.inst)$("#auth_inst").value=s.inst;
   if(s.minw){$("#auth_minw").value=s.minw;$("#auth_minw_v").textContent=s.minw;}
   if(s.djournal)$("#drift_journal").value=s.djournal;
+  if(s.rtopic)$("#read_topic").value=s.rtopic;
 }catch(e){}})();
 function save(){localStorage.setItem("lancet_form",JSON.stringify({
   journal:$("#aff_journal").value,years:$("#aff_years").value,thr:$("#aff_thr").value,
   minp:$("#aff_minp").value,inst:$("#auth_inst").value,minw:$("#auth_minw").value,
-  djournal:$("#drift_journal").value}));}
+  djournal:$("#drift_journal").value,rtopic:$("#read_topic").value}));}
 
 function openModal(k){$("#"+k+"Modal").classList.add("active");}
 function closeModal(k){$("#"+k+"Modal").classList.remove("active");}
@@ -363,7 +393,6 @@ async function runAuth(){
     res.innerHTML=authTable(data,inst);
   }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
 }
-// Author name cell: OpenAlex profile link when author_id is a valid ID.
 function authorLink(r){
   const name=esc(r.author_name);
   const id=String(r.author_id==null?"":r.author_id);
@@ -374,8 +403,7 @@ function authorLink(r){
 }
 function authTable(rows,inst){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No authors matched'+(inst?' for "'+esc(inst)+'"':'')+'.</p>';
-  let h=metaRow(rows.length+' authors'+(inst?' · '+esc(inst):''),
-    'auth','lancet-authors.json');
+  let h=metaRow(rows.length+' authors'+(inst?' · '+esc(inst):''),'auth','lancet-authors.json');
   h+='<table><thead><tr><th>#</th><th>Author</th><th style="text-align:right">Works</th><th style="text-align:right">Citations</th><th style="text-align:right">Avg</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{h+='<tr><td class="n">'+(i+1)+'</td><td>'+authorLink(r)+'</td>'+
     '<td class="n">'+num(r.works)+'</td><td class="n">'+num(r.total_citations)+'</td>'+
@@ -397,18 +425,13 @@ async function runDrift(){
     res.innerHTML=driftChart(data,j,w1,w2);
   }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
 }
-// Diverging bar chart: fading topics (negative delta) grow left in red,
-// rising topics (positive delta) grow right in green. Bars are scaled to the
-// largest absolute delta, capped at 55% of the half-row, so the topic name and
-// number ALWAYS fit on the same single line (ellipsis + hover title for long names).
 function driftChart(rows,journal,w1,w2){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No topic data for this journal / window pair.</p>';
   rows.sort((a,b)=>(Number(b.delta_share)||0)-(Number(a.delta_share)||0));
   const maxAbs=Math.max(...rows.map(r=>Math.abs(Number(r.delta_share)||0)),0.0001);
   const w1lbl=w1.replace(":","–"), w2lbl=w2.replace(":","–");
   let h=metaRow(rows.length+' topics'+(journal?' · '+esc(journal):' · all journals')+
-    ' · '+esc(w1lbl)+' vs '+esc(w2lbl),
-    'drift','lancet-topic-trends.json');
+    ' · '+esc(w1lbl)+' vs '+esc(w2lbl),'drift','lancet-topic-trends.json');
   h+='<div class="drift-legend"><span>🔴 Fading ('+esc(w1lbl)+' stronger)</span>'+
     '<span>Rising ('+esc(w2lbl)+' stronger) 🟢</span></div>';
   rows.forEach(r=>{
@@ -417,27 +440,95 @@ function driftChart(rows,journal,w1,w2){
     const w=Math.max(2,Math.round(Math.abs(d)/maxAbs*55));
     const topic=esc(r.topic);
     if(d>=0){
-      // rising → right side filled
-      h+='<div class="drift-row">'+
-        '<div class="drift-left"></div>'+
-        '<div class="drift-axis">›</div>'+
+      h+='<div class="drift-row"><div class="drift-left"></div><div class="drift-axis">›</div>'+
         '<div class="drift-right"><div class="drift-fill rising" style="width:'+w+'%"></div>'+
         '<span class="drift-delta rising">+'+pctPts+'</span>'+
-        '<span class="drift-topic rising" title="'+topic+'">'+topic+'</span></div>'+
-        '</div>';
+        '<span class="drift-topic rising" title="'+topic+'">'+topic+'</span></div></div>';
     }else{
-      // fading → left side filled
-      h+='<div class="drift-row">'+
-        '<div class="drift-left"><span class="drift-topic fading" title="'+topic+'">'+topic+'</span>'+
+      h+='<div class="drift-row"><div class="drift-left">'+
+        '<span class="drift-topic fading" title="'+topic+'">'+topic+'</span>'+
         '<span class="drift-delta fading">'+pctPts+'</span>'+
         '<div class="drift-fill fading" style="width:'+w+'%"></div></div>'+
-        '<div class="drift-axis">‹</div>'+
-        '<div class="drift-right"></div>'+
-        '</div>';
+        '<div class="drift-axis">‹</div><div class="drift-right"></div></div>';
     }
   });
   h+='<p class="note">Values are percentage-point changes in each topic\'s share of the journal\'s output between the two windows. Topics reflect OpenAlex automated classification.</p>';
   return h;
+}
+
+// ── Reading List + retraction check ─────────────────────────────────────────
+// 1) /curate builds the ranked list. 2) each paper's DOI is checked against the
+// retraction-checker via /check?doi=…, concurrently but capped, updating badges
+// in place as each result lands (no blocking the whole table).
+async function runRead(){
+  save();
+  const topic=$("#read_topic").value.trim();
+  if(!topic){$("#read_res").innerHTML='<p class="err">Please enter a topic.</p>';return;}
+  const p=new URLSearchParams();
+  p.set("topic",topic); p.set("sort",$("#read_sort").value); p.set("limit",$("#read_lim").value);
+  const res=$("#read_res"); res.innerHTML='<span class="spin"></span> Building list…';
+  try{
+    const data=await fetchJSON("/curate?"+p.toString());
+    const rows=Array.isArray(data)?data:(data.works||data.results||[]);
+    lastData.read=rows;
+    res.innerHTML=readTable(rows,topic);
+    checkRetractions(rows);
+  }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
+}
+
+// Pull a DOI out of whatever field the CLI used.
+function paperDOI(r){
+  let d=r.doi||r.DOI||r.doi_url||"";
+  d=String(d).replace(/^https?:\/\/(dx\.)?doi\.org\//i,"").trim();
+  return d;
+}
+function paperTitle(r){return esc(r.title||r.display_name||r.name||"(untitled)");}
+function paperCitations(r){return Number(r.cited_by_count||r.citations||r.total_citations||0);}
+
+function readTable(rows,topic){
+  if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No papers found for "'+esc(topic)+'".</p>';
+  let h=metaRow(rows.length+' papers · "'+esc(topic)+'" · retraction-checked',
+    'read','lancet-reading-list.json');
+  h+='<table><thead><tr><th>#</th><th>Title</th><th style="text-align:right">Citations</th><th>Status</th></tr></thead><tbody>';
+  rows.forEach((r,i)=>{
+    const doi=paperDOI(r);
+    const doiLink=doi?'<br><a class="alink" href="https://doi.org/'+encodeURIComponent(doi)+'" target="_blank" rel="noopener noreferrer" style="font-size:.78em;opacity:.7">'+esc(doi)+'</a>':'';
+    const status=doi?'<span class="badge-checking" id="chk-'+i+'">checking…</span>':'<span class="badge-checking">no DOI</span>';
+    h+='<tr><td class="n">'+(i+1)+'</td><td>'+paperTitle(r)+doiLink+'</td>'+
+      '<td class="n">'+num(paperCitations(r))+'</td><td id="st-'+i+'">'+status+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  h+='<p class="note">Retraction status is checked live against Crossref &amp; OpenAlex via the retraction-checker (keyless). Papers without a DOI can\'t be verified.</p>';
+  return h;
+}
+
+// Check each DOI, at most 4 in flight at once, updating the row's status cell.
+async function checkRetractions(rows){
+  const queue=rows.map((r,i)=>({i,doi:paperDOI(r)})).filter(x=>x.doi);
+  let active=0, idx=0;
+  return new Promise(resolve=>{
+    function next(){
+      if(idx>=queue.length && active===0){resolve();return;}
+      while(active<4 && idx<queue.length){
+        const {i,doi}=queue[idx++]; active++;
+        fetchJSON("/check?doi="+encodeURIComponent(doi))
+          .then(res=>{
+            const cell=$("#st-"+i); if(!cell)return;
+            if(res && res.retracted===true){
+              cell.innerHTML='<span class="badge-retracted">⚠️ RETRACTED</span>';
+            }else if(res && res.error){
+              cell.innerHTML='<span class="badge-checking">unverified</span>';
+            }else{
+              cell.innerHTML='<span class="badge-ok">✓ clean</span>';
+            }
+          })
+          .catch(()=>{const cell=$("#st-"+i); if(cell)cell.innerHTML='<span class="badge-checking">unverified</span>';})
+          .finally(()=>{active--;next();});
+      }
+    }
+    if(!queue.length){resolve();return;}
+    next();
+  });
 }
 </script>
 </body>
