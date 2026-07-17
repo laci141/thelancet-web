@@ -8,6 +8,13 @@
 // The endpoints are read-only and keyless (thelancet analytics take no LLM key).
 // Query params are whitelisted and passed as discrete argv elements (no shell),
 // so untrusted input can never inject flags or commands.
+//
+// Post-processing (done here, not in the CLI):
+//   - /authors:      minWorks filter (default 2) removes single-consortium-paper
+//     authors (e.g. Global Burden of Disease papers with 500+ co-authors).
+//   - /affiliations: minPrior grouping (default 5) moves institutions with a
+//     tiny prior-window base to the bottom, flagged low_base / is_new, so a
+//     1 -> 22 jump can't show up as a misleading "+2100%".
 package main
 
 import (
@@ -83,9 +90,17 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte("ok"))
 }
 
-// handleAffiliations mirrors GET /affiliations?journal=&years=&threshold=&limit=.
+// handleAffiliations mirrors GET /affiliations?journal=&years=&threshold=&limit=&minPrior=.
+// minPrior does NOT drop rows: institutions whose prior-window count is below it
+// keep their data but are flagged (low_base, is_new when prior==0) and moved to
+// the bottom of the list, so growth % stays meaningful at the top.
 func handleAffiliations(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	minPrior, err := optInt(q.Get("minPrior"), 5, 0, 20)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
 	args := []string{"affiliation-growth", "--json", "--db", dbPath()}
 	if v := strings.TrimSpace(q.Get("journal")); v != "" {
 		args = append(args, "--journal", v)
@@ -108,12 +123,57 @@ func handleAffiliations(w http.ResponseWriter, r *http.Request) {
 	} else {
 		args = append(args, a...)
 	}
-	runCLI(w, r, args)
+
+	raw, err := runCLIRaw(r.Context(), args)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+
+	var rows []map[string]any
+	if json.Unmarshal(raw, &rows) != nil {
+		// Unexpected shape (e.g. error object) — pass through unchanged.
+		writeRaw(w, raw)
+		return
+	}
+	normal := make([]map[string]any, 0, len(rows))
+	lowBase := make([]map[string]any, 0)
+	for _, row := range rows {
+		prior := jsonInt(row["prior_count"])
+		if prior >= minPrior {
+			normal = append(normal, row)
+			continue
+		}
+		row["low_base"] = true
+		if prior == 0 {
+			row["is_new"] = true
+		}
+		lowBase = append(lowBase, row)
+	}
+	writeJSONValue(w, append(normal, lowBase...))
 }
 
-// handleAuthors mirrors GET /authors?institution=&journal=&limit=.
+// handleAuthors mirrors GET /authors?institution=&journal=&limit=&minWorks=.
+// minWorks (default 2) filters out authors below the works threshold BEFORE the
+// final limit is applied; the CLI is over-fetched (limit*5, capped at 500) so
+// the response can still fill the requested limit after filtering.
 func handleAuthors(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	minWorks, err := optInt(q.Get("minWorks"), 2, 1, 10)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	limit, err := optInt(q.Get("limit"), 25, 1, 500)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	cliLimit := limit * 5
+	if cliLimit > 500 {
+		cliLimit = 500
+	}
+
 	args := []string{"rank-authors", "--json", "--db", dbPath()}
 	if v := strings.TrimSpace(q.Get("institution")); v != "" {
 		args = append(args, "--institution", v)
@@ -121,13 +181,29 @@ func handleAuthors(w http.ResponseWriter, r *http.Request) {
 	if v := strings.TrimSpace(q.Get("journal")); v != "" {
 		args = append(args, "--journal", v)
 	}
-	if a, err := intFlag(q.Get("limit"), "limit", 1, 500); err != nil {
+	args = append(args, "--limit", strconv.Itoa(cliLimit))
+
+	raw, err := runCLIRaw(r.Context(), args)
+	if err != nil {
 		writeErr(w, err)
 		return
-	} else {
-		args = append(args, a...)
 	}
-	runCLI(w, r, args)
+
+	var rows []map[string]any
+	if json.Unmarshal(raw, &rows) != nil {
+		writeRaw(w, raw)
+		return
+	}
+	filtered := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		if jsonInt(row["works"]) >= minWorks {
+			filtered = append(filtered, row)
+		}
+	}
+	if len(filtered) > limit {
+		filtered = filtered[:limit]
+	}
+	writeJSONValue(w, filtered)
 }
 
 // intFlag validates an optional integer query param and returns it as a
@@ -147,8 +223,39 @@ func intFlag(raw, name string, min, max int) ([]string, error) {
 	return []string{"--" + name, strconv.Itoa(n)}, nil
 }
 
-func runCLI(w http.ResponseWriter, r *http.Request, args []string) {
-	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+// optInt parses an optional integer query param into a value (not a flag),
+// falling back to def when absent and range-checking otherwise.
+func optInt(raw string, def, min, max int) (int, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return def, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, errors.New("parameter must be an integer")
+	}
+	if n < min || n > max {
+		return 0, fmt.Errorf("parameter must be between %d and %d", min, max)
+	}
+	return n, nil
+}
+
+// jsonInt reads an integer out of a decoded JSON value (numbers arrive as
+// float64 from encoding/json; tolerate numeric strings too).
+func jsonInt(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case string:
+		i, _ := strconv.Atoi(strings.TrimSpace(n))
+		return i
+	}
+	return 0
+}
+
+// runCLIRaw executes the CLI and returns its validated JSON stdout.
+func runCLIRaw(parent context.Context, args []string) ([]byte, error) {
+	ctx, cancel := context.WithTimeout(parent, 60*time.Second)
 	defer cancel()
 	// #nosec G204 -- fixed subcommand + whitelisted flags with values passed as
 	// discrete argv elements (no shell); ints are range-checked above.
@@ -161,16 +268,23 @@ func runCLI(w http.ResponseWriter, r *http.Request, args []string) {
 		if msg == "" {
 			msg = err.Error()
 		}
-		writeErr(w, fmt.Errorf("analytics failed: %s", msg))
-		return
+		return nil, fmt.Errorf("analytics failed: %s", msg)
 	}
 	raw := bytes.TrimSpace(stdout.Bytes())
 	if !json.Valid(raw) {
-		writeErr(w, errors.New("CLI returned non-JSON output"))
-		return
+		return nil, errors.New("CLI returned non-JSON output")
 	}
+	return raw, nil
+}
+
+func writeRaw(w http.ResponseWriter, raw []byte) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	_, _ = w.Write(raw)
+}
+
+func writeJSONValue(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 func writeErr(w http.ResponseWriter, err error) {
