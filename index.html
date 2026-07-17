@@ -517,7 +517,7 @@ function readTable(rows,topic){
 }
 
 // Check each DOI, at most 4 in flight at once, updating the row's status cell.
-// Each /check call is capped at 15s; on timeout or error the row shows "unverified".
+// Each /check call is capped at 20s; on timeout or error the row shows "unverified".
 async function checkRetractions(rows){
   const queue=rows.map((r,i)=>({i,doi:paperDOI(r)})).filter(x=>x.doi);
   let active=0, idx=0;
@@ -526,7 +526,7 @@ async function checkRetractions(rows){
       if(idx>=queue.length && active===0){resolve();return;}
       while(active<4 && idx<queue.length){
         const {i,doi}=queue[idx++]; active++;
-        fetchJSONTimeout("/check?doi="+encodeURIComponent(doi),15000)
+        fetchJSONTimeout("/check?doi="+encodeURIComponent(doi),20000)
           .then(res=>{
             const cell=$("#st-"+i); if(!cell)return;
             if(res && res.retracted===true){
