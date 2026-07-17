@@ -1,9 +1,10 @@
-// Command thelancet-web serves a single-page UI plus two JSON endpoints,
-// GET /affiliations and GET /authors, that mirror the thelancet CLI's `serve`
-// mode. Rather than proxying a subprocess `serve` (which binds loopback only and
-// serves no static files), it shells out to the equivalent analytics commands
-// (`affiliation-growth` / `rank-authors --json`) against a local mirror DB. This
-// keeps the UI and API same-origin on one port — the shape Render deploys.
+// Command thelancet-web serves a single-page UI plus three JSON endpoints,
+// GET /affiliations, GET /authors and GET /drift, that mirror the thelancet
+// CLI's analytics commands. Rather than proxying a subprocess `serve` (which
+// binds loopback only and serves no static files), it shells out to the
+// equivalent analytics commands (`affiliation-growth` / `rank-authors` / `drift`
+// --json) against a local mirror DB. This keeps the UI and API same-origin on
+// one port — the shape Render deploys.
 //
 // The endpoints are read-only and keyless (thelancet analytics take no LLM key).
 // Query params are whitelisted and passed as discrete argv elements (no shell),
@@ -15,6 +16,8 @@
 //   - /affiliations: minPrior grouping (default 5) moves institutions with a
 //     tiny prior-window base to the bottom, flagged low_base / is_new, so a
 //     1 -> 22 jump can't show up as a misleading "+2100%".
+//   - /drift:        passes through the CLI's topic-share deltas between two
+//     publication-year windows; windows are validated as strict YYYY:YYYY.
 package main
 
 import (
@@ -62,6 +65,7 @@ func main() {
 	})
 	mux.HandleFunc("/affiliations", handleAffiliations)
 	mux.HandleFunc("/authors", handleAuthors)
+	mux.HandleFunc("/drift", handleDrift)
 
 	addr := "127.0.0.1:8080"
 	if a := strings.TrimSpace(os.Getenv("ADDR")); a != "" {
@@ -204,6 +208,59 @@ func handleAuthors(w http.ResponseWriter, r *http.Request) {
 		filtered = filtered[:limit]
 	}
 	writeJSONValue(w, filtered)
+}
+
+// handleDrift mirrors GET /drift?journal=&window1=&window2=&topN=.
+// The CLI's `drift` command compares a journal's topic mix between two
+// publication-year windows (YYYY:YYYY); positive delta_share = rising in the
+// later window. window1/window2 are validated against a strict YYYY:YYYY shape
+// so untrusted input can't inject other flags; topN is range-checked. Output
+// passes through unchanged (array of {topic, window1_share, window2_share, delta_share}).
+func handleDrift(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	w1 := strings.TrimSpace(q.Get("window1"))
+	w2 := strings.TrimSpace(q.Get("window2"))
+	if !validYearWindow(w1) || !validYearWindow(w2) {
+		writeErr(w, errors.New("window1 and window2 must be YYYY:YYYY (e.g. 2015:2019)"))
+		return
+	}
+
+	topN, err := optInt(q.Get("topN"), 15, 1, 40)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+
+	args := []string{"drift", "--json", "--db", dbPath(),
+		"--window1", w1, "--window2", w2, "--top-n", strconv.Itoa(topN)}
+	if v := strings.TrimSpace(q.Get("journal")); v != "" {
+		args = append(args, "--journal", v)
+	}
+
+	raw, err := runCLIRaw(r.Context(), args)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeRaw(w, raw)
+}
+
+// validYearWindow accepts exactly YYYY:YYYY with 4-digit years and start <= end.
+func validYearWindow(s string) bool {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 {
+		return false
+	}
+	a, err1 := strconv.Atoi(parts[0])
+	b, err2 := strconv.Atoi(parts[1])
+	if err1 != nil || err2 != nil {
+		return false
+	}
+	if a < 1900 || a > 2100 || b < 1900 || b > 2100 {
+		return false
+	}
+	return a <= b
 }
 
 // intFlag validates an optional integer query param and returns it as a

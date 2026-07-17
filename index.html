@@ -26,7 +26,7 @@
     background:linear-gradient(90deg,#00d4ff,#7c3aed);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .hero p{font-size:1rem;color:#aab}
 
-  .bento{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;padding:.7rem 2rem 2.2rem;max-width:1150px;margin:0 auto}
+  .bento{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;padding:.7rem 2rem 2.2rem;max-width:1400px;margin:0 auto}
 
   /* GLASS-PANEL kártyák — lapos fekvő téglalap, ikon balra, szöveg egy sorban */
   .card{background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.045));
@@ -67,17 +67,27 @@
   select option{background:#1a1a2e}
   input[type=range]{width:100%;accent-color:var(--c)}
   .val{font-variant-numeric:tabular-nums;color:#fff;font-weight:700}
+  .row2{display:flex;gap:1rem}
+  .row2>div{flex:1}
   .btn{background:linear-gradient(90deg,#00d4ff,#7c3aed);border:none;color:#000;padding:.7rem 2rem;border-radius:.5rem;
     font-weight:700;cursor:pointer;transition:.3s;font-size:1rem;margin-top:1.1rem;width:100%}
   .btn:hover{transform:scale(1.01);box-shadow:0 8px 24px rgba(0,212,255,.3)}
   .results{margin-top:1.3rem;animation:fade .3s ease}
+
+  /* Eredmény-fejléc: darabszám balra, JSON-letöltés gomb jobbra */
+  .meta-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;gap:12px}
+  .meta{font-size:.82rem;color:#99a}
+  .dl{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#cdd6ea;
+    padding:4px 14px;border-radius:999px;font-size:.75rem;font-weight:600;cursor:pointer;
+    transition:.2s;white-space:nowrap;flex-shrink:0}
+  .dl:hover{background:rgba(255,255,255,.15);border-color:var(--c);color:#fff}
+
   table{width:100%;border-collapse:collapse;font-size:.88rem}
   th,td{text-align:left;padding:.5rem .9rem .5rem 0;border-bottom:1px solid rgba(255,255,255,.07)}
   th{color:#9aa4bf;font-weight:600;white-space:nowrap}
   td{white-space:normal}
   tbody tr:hover{background:rgba(255,255,255,.04)}
   td.n{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
-  .meta{font-size:.82rem;color:#99a;margin-bottom:.6rem}
   .spin{display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--c);
     border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -100,6 +110,22 @@
   .growth-positive{background:rgba(34,197,94,.18);color:#4ade80;border:1px solid rgba(34,197,94,.35)}
   .growth-negative{background:rgba(239,68,68,.18);color:#f87171;border:1px solid rgba(239,68,68,.35)}
 
+  /* Drift / Topic Trends — diverging bar chart.
+     A sávok max 55%-ig nőhetnek, így a topic-név + szám MINDIG kifér a sorban. */
+  .drift-row{display:grid;grid-template-columns:1fr 34px 1fr;align-items:center;gap:10px;
+    padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.05)}
+  .drift-left{display:flex;justify-content:flex-end;align-items:center;gap:8px;min-width:0}
+  .drift-right{display:flex;justify-content:flex-start;align-items:center;gap:8px;min-width:0}
+  .drift-topic{font-size:.85rem;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}
+  .drift-fill{height:16px;border-radius:4px;flex-shrink:0}
+  .drift-fill.rising{background:linear-gradient(90deg,rgba(34,197,94,.5),rgba(34,197,94,.9))}
+  .drift-fill.fading{background:linear-gradient(90deg,rgba(239,68,68,.9),rgba(239,68,68,.5))}
+  .drift-delta{font-variant-numeric:tabular-nums;font-size:.78rem;font-weight:700;white-space:nowrap;flex-shrink:0}
+  .drift-delta.rising{color:#4ade80}
+  .drift-delta.fading{color:#f87171}
+  .drift-axis{text-align:center;font-size:.72rem;color:#778;font-weight:700}
+  .drift-legend{display:flex;justify-content:space-between;font-size:.78rem;color:#99a;margin:.4rem 0 .8rem}
+
   .note{font-size:.78rem;color:rgba(255,255,255,.5);margin-top:1.1rem;line-height:1.5;white-space:normal}
 
   footer{text-align:center;padding:1.8rem;color:#778;border-top:1px solid rgba(255,255,255,.05);font-size:.82rem}
@@ -115,6 +141,9 @@
       padding:1rem 1.2rem;min-height:84px;box-shadow:0 12px 32px -14px rgba(0,0,0,.7)}
     .mc{border-radius:16px;backdrop-filter:blur(11px);-webkit-backdrop-filter:blur(11px);padding:1.1rem}
     table{display:block;overflow-x:auto}
+    .row2{flex-direction:column;gap:0}
+    .drift-row{grid-template-columns:1fr 30px 1fr;gap:6px}
+    .drift-topic{font-size:.78rem;max-width:120px}
   }
 </style>
 </head>
@@ -134,6 +163,10 @@
   <div class="card" style="--c:#7c3aed" onclick="openModal('auth')">
     <div class="ic">✍️</div>
     <div class="tx"><div class="lb">Authors</div><div class="sub">Ranked by citations</div></div>
+  </div>
+  <div class="card" style="--c:#22c55e" onclick="openModal('drift')">
+    <div class="ic">📈</div>
+    <div class="tx"><div class="lb">Topic Trends</div><div class="sub">Rising &amp; fading themes</div></div>
   </div>
 </section>
 
@@ -182,6 +215,35 @@
   <div class="results" id="auth_res"></div>
 </div></div>
 
+<!-- Topic Trends (drift) modal -->
+<div class="modal" id="driftModal"><div class="mc" style="--c:#22c55e">
+  <div class="mh"><h2>📈 Topic Trends</h2><button class="x" onclick="closeModal('drift')">&times;</button></div>
+  <label>Journal</label>
+  <select id="drift_journal">
+    <option value="">All Lancet journals</option>
+    <option value="lancet" selected>The Lancet (flagship)</option>
+    <option value="lancet-neurology">Lancet Neurology</option>
+    <option value="lancet-oncology">Lancet Oncology</option>
+    <option value="lancet-infectious-diseases">Lancet Infectious Diseases</option>
+    <option value="lancet-public-health">Lancet Public Health</option>
+    <option value="lancet-digital-health">Lancet Digital Health</option>
+  </select>
+  <div class="row2">
+    <div>
+      <label>Earlier window · <span class="val" id="drift_w1_v">2015–2019</span></label>
+      <input type="range" id="drift_w1" min="2005" max="2020" value="2015" oninput="setW1(this.value)">
+    </div>
+    <div>
+      <label>Later window · <span class="val" id="drift_w2_v">2020–2024</span></label>
+      <input type="range" id="drift_w2" min="2010" max="2024" value="2020" oninput="setW2(this.value)">
+    </div>
+  </div>
+  <label>Top topics · <span class="val" id="drift_top_v">15</span></label>
+  <input type="range" id="drift_top" min="5" max="40" value="15" oninput="drift_top_v.textContent=this.value">
+  <button class="btn" onclick="runDrift()">Run Analysis</button>
+  <div class="results" id="drift_res"></div>
+</div></div>
+
 <footer>
   The Lancet CLI × serve-mode analytics · <a href="https://github.com/laci141/thelancet-web" target="_blank" rel="noopener">GitHub</a>
   · Powered by <a href="https://github.com/mvanhorn/printing-press-library" target="_blank" rel="noopener">Printing Press Library</a>
@@ -193,6 +255,32 @@ const $=s=>document.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num=n=>(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:1});
 
+// Az utolsó lekérdezések nyers JSON-adata modulonként — a ⬇ JSON gombhoz.
+const lastData={aff:null,auth:null,drift:null};
+
+// JSON-letöltés: az adott modul utolsó eredményét fájlként menti le.
+function downloadJSON(key,filename){
+  const d=lastData[key];
+  if(!d){alert("Run an analysis first.");return;}
+  const blob=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Egységes eredmény-fejléc: bal oldalt a meta-szöveg, jobb oldalt a ⬇ JSON gomb.
+function metaRow(text,key,filename){
+  return '<div class="meta-row"><span class="meta">'+text+'</span>'+
+    '<button class="dl" onclick="downloadJSON(\''+key+'\',\''+filename+'\')">⬇ JSON</button></div>';
+}
+
+// Each window is a fixed 5-year span starting at the slider value.
+function setW1(y){y=Number(y);$("#drift_w1_v").textContent=y+"–"+(y+4);}
+function setW2(y){y=Number(y);$("#drift_w2_v").textContent=y+"–"+(y+4);}
+
 // restore saved form state
 (function(){try{const s=JSON.parse(localStorage.getItem("lancet_form")||"{}");
   if(s.journal)$("#aff_journal").value=s.journal;
@@ -201,10 +289,12 @@ const num=n=>(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:1});
   if(s.minp){$("#aff_minp").value=s.minp;$("#aff_minp_v").textContent=s.minp;}
   if(s.inst)$("#auth_inst").value=s.inst;
   if(s.minw){$("#auth_minw").value=s.minw;$("#auth_minw_v").textContent=s.minw;}
+  if(s.djournal)$("#drift_journal").value=s.djournal;
 }catch(e){}})();
 function save(){localStorage.setItem("lancet_form",JSON.stringify({
   journal:$("#aff_journal").value,years:$("#aff_years").value,thr:$("#aff_thr").value,
-  minp:$("#aff_minp").value,inst:$("#auth_inst").value,minw:$("#auth_minw").value}));}
+  minp:$("#aff_minp").value,inst:$("#auth_inst").value,minw:$("#auth_minw").value,
+  djournal:$("#drift_journal").value}));}
 
 function openModal(k){$("#"+k+"Modal").classList.add("active");}
 function closeModal(k){$("#"+k+"Modal").classList.remove("active");}
@@ -227,13 +317,15 @@ async function runAff(){
   const res=$("#aff_res"); res.innerHTML='<span class="spin"></span> Computing…';
   try{
     const data=await fetchJSON("/affiliations?"+p.toString());
+    lastData.aff=data;
     res.innerHTML=affTable(data,j);
   }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
 }
 function affTable(rows,journal){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No institutions matched.</p>';
   const maxRecent=Math.max(1,...rows.map(r=>Number(r.recent_count)||0));
-  let h='<div class="meta">'+rows.length+' institutions'+(journal?' · '+esc(journal):' · all journals')+'</div>';
+  let h=metaRow(rows.length+' institutions'+(journal?' · '+esc(journal):' · all journals'),
+    'aff','lancet-affiliations.json');
   h+='<table><thead><tr><th>#</th><th>Institution</th><th style="text-align:right">Recent</th><th style="text-align:right">Prior</th><th>Growth</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{
     const recent=Number(r.recent_count)||0, prior=Number(r.prior_count)||0;
@@ -267,6 +359,7 @@ async function runAuth(){
   const res=$("#auth_res"); res.innerHTML='<span class="spin"></span> Computing…';
   try{
     const data=await fetchJSON("/authors?"+p.toString());
+    lastData.auth=data;
     res.innerHTML=authTable(data,inst);
   }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
 }
@@ -281,12 +374,70 @@ function authorLink(r){
 }
 function authTable(rows,inst){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No authors matched'+(inst?' for "'+esc(inst)+'"':'')+'.</p>';
-  let h='<div class="meta">'+rows.length+' authors'+(inst?' · '+esc(inst):'')+'</div>';
+  let h=metaRow(rows.length+' authors'+(inst?' · '+esc(inst):''),
+    'auth','lancet-authors.json');
   h+='<table><thead><tr><th>#</th><th>Author</th><th style="text-align:right">Works</th><th style="text-align:right">Citations</th><th style="text-align:right">Avg</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{h+='<tr><td class="n">'+(i+1)+'</td><td>'+authorLink(r)+'</td>'+
     '<td class="n">'+num(r.works)+'</td><td class="n">'+num(r.total_citations)+'</td>'+
     '<td class="n">'+num(r.avg_citations)+'</td></tr>';});
   return h+'</tbody></table>';
+}
+
+async function runDrift(){
+  save();
+  const y1=Number($("#drift_w1").value), y2=Number($("#drift_w2").value);
+  const w1=y1+":"+(y1+4), w2=y2+":"+(y2+4);
+  const p=new URLSearchParams();
+  const j=$("#drift_journal").value; if(j)p.set("journal",j);
+  p.set("window1",w1); p.set("window2",w2); p.set("topN",$("#drift_top").value);
+  const res=$("#drift_res"); res.innerHTML='<span class="spin"></span> Computing…';
+  try{
+    const data=await fetchJSON("/drift?"+p.toString());
+    lastData.drift=data;
+    res.innerHTML=driftChart(data,j,w1,w2);
+  }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
+}
+// Diverging bar chart: fading topics (negative delta) grow left in red,
+// rising topics (positive delta) grow right in green. Bars are scaled to the
+// largest absolute delta, capped at 55% of the half-row, so the topic name and
+// number ALWAYS fit on the same single line (ellipsis + hover title for long names).
+function driftChart(rows,journal,w1,w2){
+  if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No topic data for this journal / window pair.</p>';
+  rows.sort((a,b)=>(Number(b.delta_share)||0)-(Number(a.delta_share)||0));
+  const maxAbs=Math.max(...rows.map(r=>Math.abs(Number(r.delta_share)||0)),0.0001);
+  const w1lbl=w1.replace(":","–"), w2lbl=w2.replace(":","–");
+  let h=metaRow(rows.length+' topics'+(journal?' · '+esc(journal):' · all journals')+
+    ' · '+esc(w1lbl)+' vs '+esc(w2lbl),
+    'drift','lancet-topic-trends.json');
+  h+='<div class="drift-legend"><span>🔴 Fading ('+esc(w1lbl)+' stronger)</span>'+
+    '<span>Rising ('+esc(w2lbl)+' stronger) 🟢</span></div>';
+  rows.forEach(r=>{
+    const d=Number(r.delta_share)||0;
+    const pctPts=(d*100).toFixed(1);
+    const w=Math.max(2,Math.round(Math.abs(d)/maxAbs*55));
+    const topic=esc(r.topic);
+    if(d>=0){
+      // rising → right side filled
+      h+='<div class="drift-row">'+
+        '<div class="drift-left"></div>'+
+        '<div class="drift-axis">›</div>'+
+        '<div class="drift-right"><div class="drift-fill rising" style="width:'+w+'%"></div>'+
+        '<span class="drift-delta rising">+'+pctPts+'</span>'+
+        '<span class="drift-topic rising" title="'+topic+'">'+topic+'</span></div>'+
+        '</div>';
+    }else{
+      // fading → left side filled
+      h+='<div class="drift-row">'+
+        '<div class="drift-left"><span class="drift-topic fading" title="'+topic+'">'+topic+'</span>'+
+        '<span class="drift-delta fading">'+pctPts+'</span>'+
+        '<div class="drift-fill fading" style="width:'+w+'%"></div></div>'+
+        '<div class="drift-axis">‹</div>'+
+        '<div class="drift-right"></div>'+
+        '</div>';
+    }
+  });
+  h+='<p class="note">Values are percentage-point changes in each topic\'s share of the journal\'s output between the two windows. Topics reflect OpenAlex automated classification.</p>';
+  return h;
 }
 </script>
 </body>
