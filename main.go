@@ -1,6 +1,6 @@
-// Command thelancet-web serves a single-page UI plus five JSON endpoints:
-// GET /affiliations, /authors, /drift, /curate, and /check, that mirror the
-// thelancet CLI's analytics commands. The /check endpoint integrates the
+// Command thelancet-web serves a single-page UI plus six JSON endpoints:
+// GET /affiliations, /authors, /drift, /curate, /mesh, and /check, that mirror
+// the thelancet CLI's analytics commands. The /check endpoint integrates the
 // retraction-checker CLI for batch verification. All endpoints are read-only and
 // keyless (analytics take no LLM key). Query params are whitelisted and passed
 // as discrete argv elements (no shell).
@@ -12,6 +12,8 @@
 //   - /curate:       ranked reading lists for a topic, optionally scoped to a
 //     journal; also feeds the Rising Papers view (citations-per-year is computed
 //     client-side from the year + cited_by_count fields).
+//   - /mesh:         co-authorship pairs within an institution (feeds the D3
+//     force-directed collaboration graph, which is built client-side).
 //   - /check:        verifies retraction status via the retraction-checker CLI.
 package main
 
@@ -78,6 +80,7 @@ func main() {
 	mux.HandleFunc("/authors", handleAuthors)
 	mux.HandleFunc("/drift", handleDrift)
 	mux.HandleFunc("/curate", handleCurate)
+	mux.HandleFunc("/mesh", handleMesh)
 	mux.HandleFunc("/check", handleCheck)
 
 	addr := "127.0.0.1:8080"
@@ -273,6 +276,35 @@ func handleCurate(w http.ResponseWriter, r *http.Request) {
 	if s := strings.TrimSpace(q.Get("sort")); s != "" {
 		args = append(args, "--sort", s)
 	}
+
+	raw, err := runCLIRaw(r.Context(), args)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeRaw(w, raw)
+}
+
+// handleMesh mirrors GET /mesh?org=&limit=.
+// Returns co-authorship pairs within an institution ranked by shared works.
+// Each row is {author_a, author_b, shared_works}; the client builds a graph
+// (nodes = authors, links = shared_works) from these pairs.
+func handleMesh(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	org := strings.TrimSpace(q.Get("org"))
+	if org == "" {
+		writeErr(w, errors.New("org parameter required"))
+		return
+	}
+
+	limit, err := optInt(q.Get("limit"), 25, 1, 100)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+
+	args := []string{"mesh", "--json", "--db", dbPath(),
+		"--org", org, "--limit", strconv.Itoa(limit)}
 
 	raw, err := runCLIRaw(r.Context(), args)
 	if err != nil {

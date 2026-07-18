@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The Lancet Intelligence</title>
+<title>Pubvera — Medical Journal Analytics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth;font-size:160%}
@@ -49,10 +50,10 @@
   @keyframes fade{from{opacity:0}to{opacity:1}}
   @keyframes slide{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
 
-  /* GLASS-PANEL modal — széles, a táblázat görgetés nélkül elfér */
+  /* GLASS-PANEL modal — széles, a táblázat / gráf görgetés nélkül elfér */
   .mc{background:linear-gradient(160deg, rgba(30,32,58,.82), rgba(22,24,46,.86));
     border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:1.6rem 1.8rem;
-    width:1250px;max-width:97%;max-height:92vh;overflow-y:auto;
+    width:1600px;max-width:98%;max-height:95vh;overflow-y:auto;
     box-shadow:0 25px 60px -15px rgba(0,0,0,.8);
     backdrop-filter:blur(15px);
     -webkit-backdrop-filter:blur(15px);
@@ -81,12 +82,18 @@
     padding:4px 14px;border-radius:999px;font-size:.75rem;font-weight:600;cursor:pointer;
     transition:.2s;white-space:nowrap;flex-shrink:0}
   .dl:hover{background:rgba(255,255,255,.15);border-color:var(--c);color:#fff}
+  .dl-group{display:flex;gap:8px;flex-shrink:0}
 
   table{width:100%;border-collapse:collapse;font-size:.88rem}
   th,td{text-align:left;padding:.5rem .9rem .5rem 0;border-bottom:1px solid rgba(255,255,255,.07)}
   th{color:#9aa4bf;font-weight:600;white-space:nowrap}
   td{white-space:normal}
   tbody tr:hover{background:rgba(255,255,255,.04)}
+  .results table th{cursor:pointer;user-select:none}
+  .results table th:hover{color:#e8eef7}
+  .results table th::after{content:" ⇅";opacity:.35;font-size:.8em}
+  .results table th.sorted-asc::after{content:" ↑";opacity:.9}
+  .results table th.sorted-desc::after{content:" ↓";opacity:.9}
   td.n{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
   .spin{display:inline-block;width:18px;height:18px;border:3px solid rgba(255,255,255,.15);border-top-color:var(--c);
     border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle}
@@ -138,6 +145,24 @@
   .drift-axis{text-align:center;font-size:.72rem;color:#778;font-weight:700}
   .drift-legend{display:flex;justify-content:space-between;font-size:.78rem;color:#99a;margin:.4rem 0 .8rem}
 
+  /* Collaboration graph (D3 force-directed) — zoom+pan, nagy címkék erős halóval */
+  .graph-wrap{position:relative;width:100%;height:85vh;min-height:520px;max-height:1100px;
+    border-radius:14px;overflow:hidden;
+    background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.04),transparent 70%);
+    border:1px solid rgba(255,255,255,.08);margin-top:.4rem;cursor:grab}
+  .graph-wrap:active{cursor:grabbing}
+  .graph-wrap svg{width:100%;height:100%;display:block}
+  .glink{stroke:rgba(255,255,255,.22);stroke-linecap:round}
+  .gnode{cursor:grab;stroke:#0b1020;stroke-width:2px}
+  .glabel{font-size:22px;font-weight:800;fill:#ffffff;pointer-events:none;paint-order:stroke;
+    stroke:#05070f;stroke-width:6px;stroke-linejoin:round;letter-spacing:.2px}
+  .gtip{position:fixed;pointer-events:none;background:rgba(15,17,34,.96);border:1px solid rgba(255,255,255,.25);
+    border-radius:8px;padding:7px 12px;font-size:.82rem;color:#e8eef7;opacity:0;transition:opacity .15s;
+    white-space:nowrap;z-index:2000}
+  .zoom-hint{position:absolute;top:10px;right:14px;background:rgba(15,17,34,.85);
+    border:1px solid rgba(255,255,255,.15);border-radius:999px;padding:4px 14px;
+    font-size:.72rem;color:#aab;z-index:4;pointer-events:none}
+
   .note{font-size:.78rem;color:rgba(255,255,255,.5);margin-top:1.1rem;line-height:1.5;white-space:normal}
 
   footer{text-align:center;padding:1.8rem;color:#778;border-top:1px solid rgba(255,255,255,.05);font-size:.82rem}
@@ -156,15 +181,28 @@
     .row2{flex-direction:column;gap:0}
     .drift-row{grid-template-columns:1fr 30px 1fr;gap:6px}
     .drift-topic{font-size:.78rem;max-width:120px}
+    .graph-wrap{height:70vh;min-height:440px}
+    .glabel{font-size:17px;stroke-width:5px}
+  }
+
+  .disclaimer{max-width:1100px;margin:0 auto 2rem;padding:14px 18px;
+    background:linear-gradient(160deg, rgba(255,255,255,.06), rgba(255,255,255,.035));
+    border:1px solid rgba(255,255,255,.10);border-radius:16px;
+    backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);
+    box-shadow:0 18px 50px -18px rgba(0,0,0,.75);
+    font-size:.72rem;line-height:1.5;color:#8d97ad;text-align:center}
+  @media (max-width:600px){
+    .disclaimer{margin:0 1rem 1.5rem;padding:12px 14px;border-radius:14px;
+      backdrop-filter:blur(11px);-webkit-backdrop-filter:blur(11px);font-size:.68rem}
   }
 </style>
 </head>
 <body>
 
 <section class="hero">
-  <h1>📊 The Lancet Intelligence</h1>
-  <p>Institutional research growth and author rankings across The Lancet journal family,<br>
-  computed from a local OpenAlex mirror — keyless, data-driven analytics.</p>
+  <h1>📊 Pubvera</h1>
+  <p>Institution growth, author rankings and topic trends across the medical journal
+  literature,<br>computed from a local OpenAlex mirror — keyless, data-driven analytics.</p>
 </section>
 
 <section class="bento">
@@ -187,6 +225,10 @@
   <div class="card" style="--c:#f59e0b" onclick="openModal('rise')">
     <div class="ic">🚀</div>
     <div class="tx"><div class="lb">Rising Papers</div><div class="sub">Fastest-cited fresh work</div></div>
+  </div>
+  <div class="card" style="--c:#ec4899" onclick="openModal('mesh')">
+    <div class="ic">🕸️</div>
+    <div class="tx"><div class="lb">Collaboration</div><div class="sub">Co-authorship network</div></div>
   </div>
 </section>
 
@@ -315,10 +357,30 @@
   <div class="results" id="rise_res"></div>
 </div></div>
 
+<!-- Collaboration (mesh) modal -->
+<div class="modal" id="meshModal"><div class="mc" style="--c:#ec4899">
+  <div class="mh"><h2>🕸️ Collaboration Network</h2><button class="x" onclick="closeModal('mesh')">&times;</button></div>
+  <label>Institution</label>
+  <input type="text" id="mesh_org" placeholder="e.g. Oxford, Stanford, Harvard, Inserm…">
+  <label>Max co-authorship pairs · <span class="val" id="mesh_lim_v">40</span></label>
+  <input type="range" id="mesh_lim" min="10" max="80" value="40" oninput="mesh_lim_v.textContent=this.value">
+  <button class="btn" onclick="runMesh()">Map Network</button>
+  <div class="results" id="mesh_res"></div>
+</div></div>
+
 <footer>
-  The Lancet CLI × serve-mode analytics · <a href="https://github.com/laci141/thelancet-web" target="_blank" rel="noopener">GitHub</a>
+  Pubvera · serve-mode research analytics · <a href="https://github.com/laci141/thelancet-web" target="_blank" rel="noopener">GitHub</a>
   · Powered by <a href="https://github.com/mvanhorn/printing-press-library" target="_blank" rel="noopener">Printing Press Library</a>
 </footer>
+
+<div class="disclaimer">
+  Pubvera is an independent research-analytics tool. It is not affiliated with, endorsed by,
+  or sponsored by The Lancet, Elsevier, or any journal listed in this application.
+  Journal names are trademarks of their respective owners and are used solely to identify
+  publicly available publication metadata, sourced from OpenAlex (CC0).
+</div>
+
+<div class="gtip" id="gtip"></div>
 
 <script>
 "use strict";
@@ -327,8 +389,8 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const num=n=>(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:1});
 const CUR_YEAR=new Date().getFullYear();
 
-// Az utolsó lekérdezések nyers JSON-adata modulonként — a ⬇ JSON gombhoz.
-const lastData={aff:null,auth:null,drift:null,read:null,rise:null};
+// Az utolsó lekérdezések nyers JSON-adata modulonként — a JSON gombhoz.
+const lastData={aff:null,auth:null,drift:null,read:null,rise:null,mesh:null};
 
 function downloadJSON(key,filename){
   const d=lastData[key];
@@ -342,16 +404,53 @@ function downloadJSON(key,filename){
   URL.revokeObjectURL(url);
 }
 
+// Bármilyen sor-tömböt CSV-vé alakít (RFC4180). Excel-barát: BOM + CRLF.
+function toCSV(rows){
+  const cols=[];
+  rows.forEach(r=>Object.keys(r||{}).forEach(k=>{if(!cols.includes(k))cols.push(k);}));
+  const cell=v=>{
+    if(v===null||v===undefined)return "";
+    let s=(typeof v==="object")?JSON.stringify(v):String(v);
+    if(/[",\r\n]/.test(s)) s='"'+s.replace(/"/g,'""')+'"';
+    return s;
+  };
+  const lines=[cols.map(cell).join(",")];
+  rows.forEach(r=>lines.push(cols.map(c=>cell(r?r[c]:"")).join(",")));
+  return "\uFEFF"+lines.join("\r\n");
+}
+
+function downloadCSV(key,filename){
+  const d=lastData[key];
+  if(!d){alert("Run an analysis first.");return;}
+  let rows=null;
+  if(Array.isArray(d)) rows=d;
+  else if(d&&typeof d==="object"){
+    for(const k of Object.keys(d)){ if(Array.isArray(d[k])){rows=d[k];break;} }
+  }
+  if(!rows||!rows.length){alert("CSV export is not available for this result — use JSON.");return;}
+  const blob=new Blob([toCSV(rows)],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function metaRow(text,key,filename){
+  const csvName=String(filename).replace(/\.json$/i,".csv");
   return '<div class="meta-row"><span class="meta">'+text+'</span>'+
-    '<button class="dl" onclick="downloadJSON(\''+key+'\',\''+filename+'\')">⬇ JSON</button></div>';
+    '<span class="dl-group">'+
+    '<button class="dl" onclick="downloadCSV(\''+key+'\',\''+csvName+'\')">⬇ CSV</button>'+
+    '<button class="dl" onclick="downloadJSON(\''+key+'\',\''+filename+'\')">⬇ JSON</button>'+
+    '</span></div>';
 }
 
 function setW1(y){y=Number(y);$("#drift_w1_v").textContent=y+"–"+(y+4);}
 function setW2(y){y=Number(y);$("#drift_w2_v").textContent=y+"–"+(y+4);}
 
 // restore saved form state
-(function(){try{const s=JSON.parse(localStorage.getItem("lancet_form")||"{}");
+(function(){try{const s=JSON.parse(localStorage.getItem("pubvera_form")||"{}");
   if(s.journal)$("#aff_journal").value=s.journal;
   if(s.years){$("#aff_years").value=s.years;$("#aff_years_v").textContent=s.years;}
   if(s.thr){$("#aff_thr").value=s.thr;$("#aff_thr_v").textContent=s.thr;}
@@ -362,16 +461,18 @@ function setW2(y){y=Number(y);$("#drift_w2_v").textContent=y+"–"+(y+4);}
   if(s.rtopic)$("#read_topic").value=s.rtopic;
   if(s.ritopic)$("#rise_topic").value=s.ritopic;
   if(s.rijournal)$("#rise_journal").value=s.rijournal;
+  if(s.morg)$("#mesh_org").value=s.morg;
 }catch(e){}})();
-function save(){localStorage.setItem("lancet_form",JSON.stringify({
+function save(){localStorage.setItem("pubvera_form",JSON.stringify({
   journal:$("#aff_journal").value,years:$("#aff_years").value,thr:$("#aff_thr").value,
   minp:$("#aff_minp").value,inst:$("#auth_inst").value,minw:$("#auth_minw").value,
   djournal:$("#drift_journal").value,rtopic:$("#read_topic").value,
-  ritopic:$("#rise_topic").value,rijournal:$("#rise_journal").value}));}
+  ritopic:$("#rise_topic").value,rijournal:$("#rise_journal").value,
+  morg:$("#mesh_org").value}));}
 
 function openModal(k){$("#"+k+"Modal").classList.add("active");}
-function closeModal(k){$("#"+k+"Modal").classList.remove("active");}
-document.querySelectorAll(".modal").forEach(m=>m.addEventListener("click",e=>{if(e.target===m)m.classList.remove("active");}));
+function closeModal(k){$("#"+k+"Modal").classList.remove("active");if(k==="mesh")stopMeshSim();}
+document.querySelectorAll(".modal").forEach(m=>m.addEventListener("click",e=>{if(e.target===m){m.classList.remove("active");stopMeshSim();}}));
 
 async function fetchJSON(url){
   const r=await fetch(url);
@@ -411,7 +512,7 @@ function affTable(rows,journal){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No institutions matched.</p>';
   const maxRecent=Math.max(1,...rows.map(r=>Number(r.recent_count)||0));
   let h=metaRow(rows.length+' institutions'+(journal?' · '+esc(journal):' · all journals'),
-    'aff','lancet-affiliations.json');
+    'aff','pubvera-affiliations.json');
   h+='<table><thead><tr><th>#</th><th>Institution</th><th style="text-align:right">Recent</th><th style="text-align:right">Prior</th><th>Growth</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{
     const recent=Number(r.recent_count)||0, prior=Number(r.prior_count)||0;
@@ -459,7 +560,7 @@ function authorLink(r){
 }
 function authTable(rows,inst){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No authors matched'+(inst?' for "'+esc(inst)+'"':'')+'.</p>';
-  let h=metaRow(rows.length+' authors'+(inst?' · '+esc(inst):''),'auth','lancet-authors.json');
+  let h=metaRow(rows.length+' authors'+(inst?' · '+esc(inst):''),'auth','pubvera-authors.json');
   h+='<table><thead><tr><th>#</th><th>Author</th><th style="text-align:right">Works</th><th style="text-align:right">Citations</th><th style="text-align:right">Avg</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{h+='<tr><td class="n">'+(i+1)+'</td><td>'+authorLink(r)+'</td>'+
     '<td class="n">'+num(r.works)+'</td><td class="n">'+num(r.total_citations)+'</td>'+
@@ -487,7 +588,7 @@ function driftChart(rows,journal,w1,w2){
   const maxAbs=Math.max(...rows.map(r=>Math.abs(Number(r.delta_share)||0)),0.0001);
   const w1lbl=w1.replace(":","–"), w2lbl=w2.replace(":","–");
   let h=metaRow(rows.length+' topics'+(journal?' · '+esc(journal):' · all journals')+
-    ' · '+esc(w1lbl)+' vs '+esc(w2lbl),'drift','lancet-topic-trends.json');
+    ' · '+esc(w1lbl)+' vs '+esc(w2lbl),'drift','pubvera-topic-trends.json');
   h+='<div class="drift-legend"><span>🔴 Fading ('+esc(w1lbl)+' stronger)</span>'+
     '<span>Rising ('+esc(w2lbl)+' stronger) 🟢</span></div>';
   rows.forEach(r=>{
@@ -541,7 +642,7 @@ function paperYear(r){return Number(r.year||r.publication_year||0);}
 function readTable(rows,topic){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No papers found for "'+esc(topic)+'".</p>';
   let h=metaRow(rows.length+' papers · "'+esc(topic)+'" · retraction-checked',
-    'read','lancet-reading-list.json');
+    'read','pubvera-reading-list.json');
   h+='<table><thead><tr><th>#</th><th>Title</th><th style="text-align:right">Citations</th><th>Status</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{
     const doi=paperDOI(r);
@@ -556,9 +657,6 @@ function readTable(rows,topic){
 }
 
 // ── Rising Papers ───────────────────────────────────────────────────────────
-// Uses the same /curate feed, then re-ranks by citation velocity
-// (cited_by_count / paper age in years). A fresh paper with many citations beats
-// an old classic. Journal empty = mode A (all journals); journal set = mode B.
 async function runRise(){
   save();
   const topic=$("#rise_topic").value.trim();
@@ -572,7 +670,6 @@ async function runRise(){
   try{
     const data=await fetchJSON("/curate?"+p.toString());
     const rows=Array.isArray(data)?data:(data.works||data.results||[]);
-    // Compute velocity, keep only papers from minYear on, sort by velocity desc.
     const enriched=rows.map(r=>{
       const yr=paperYear(r), cites=paperCitations(r);
       const age=Math.max(1,CUR_YEAR-yr+1);
@@ -590,7 +687,7 @@ function riseTable(items,topic,journal,minYear){
     (journal?' in '+esc(journal):'')+'. Try a lower min year or a broader topic.</p>';
   const scope=journal?esc(journal):'all journals';
   let h=metaRow(items.length+' rising papers · "'+esc(topic)+'" · '+scope+' · from '+minYear,
-    'rise','lancet-rising-papers.json');
+    'rise','pubvera-rising-papers.json');
   h+='<table><thead><tr><th>#</th><th>Title</th><th style="text-align:right">Year</th>'+
     '<th style="text-align:right">Cites</th><th style="text-align:right">Cites/yr</th><th>Status</th></tr></thead><tbody>';
   items.forEach((x,i)=>{
@@ -608,9 +705,106 @@ function riseTable(items,topic,journal,minYear){
   return h;
 }
 
+// ── Collaboration network (D3 force-directed, zoom+pan) ─────────────────────
+let meshSim=null;  // running D3 simulation, so we can stop it on close
+function stopMeshSim(){ if(meshSim){meshSim.stop();meshSim=null;} }
+
+async function runMesh(){
+  save();
+  const org=$("#mesh_org").value.trim();
+  if(!org){$("#mesh_res").innerHTML='<p class="err">Please enter an institution.</p>';return;}
+  const p=new URLSearchParams();
+  p.set("org",org); p.set("limit",$("#mesh_lim").value);
+  const res=$("#mesh_res"); res.innerHTML='<span class="spin"></span> Mapping network…';
+  stopMeshSim();
+  try{
+    const data=await fetchJSON("/mesh?"+p.toString());
+    const pairs=Array.isArray(data)?data:[];
+    lastData.mesh=pairs;
+    if(!pairs.length){res.innerHTML='<p class="meta">No co-authorship pairs found for "'+esc(org)+'". Try a broader institution name.</p>';return;}
+    res.innerHTML=metaRow(pairs.length+' co-authorship pairs · '+esc(org),'mesh','pubvera-collaboration.json')+
+      '<div class="graph-wrap" id="graphWrap"><div class="zoom-hint">🖱️ scroll = zoom · drag = pan · double-click = reset</div></div>'+
+      '<p class="note">Each dot is a researcher; each line is shared Lancet papers between two co-authors (thicker = more shared works). Scroll to zoom in on a cluster — labels grow with zoom. Drag empty space to pan, drag a node to move it, double-click to reset the view.</p>';
+    drawMeshGraph(pairs);
+  }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
+}
+
+function drawMeshGraph(pairs){
+  // Build nodes + links from {author_a, author_b, shared_works} pairs.
+  const nodeMap=new Map();
+  function nodeId(name){
+    if(!nodeMap.has(name)) nodeMap.set(name,{id:name,deg:0,strength:0});
+    return nodeMap.get(name);
+  }
+  const links=pairs.map(p=>{
+    const a=nodeId(p.author_a), b=nodeId(p.author_b);
+    const w=Number(p.shared_works)||1;
+    a.deg++; b.deg++; a.strength+=w; b.strength+=w;
+    return {source:p.author_a,target:p.author_b,weight:w};
+  });
+  const nodes=[...nodeMap.values()];
+
+  const wrap=$("#graphWrap");
+  const W=wrap.clientWidth||900, H=wrap.clientHeight||700;
+  const maxW=Math.max(...links.map(l=>l.weight),1);
+  const maxStr=Math.max(...nodes.map(n=>n.strength),1);
+  const color=d3.scaleOrdinal(d3.quantize(d3.interpolateRainbow,Math.max(3,Math.min(nodes.length,20))));
+
+  const svg=d3.select(wrap).append("svg").attr("viewBox",[0,0,W,H]);
+  const tip=$("#gtip");
+
+  // Zoom container: minden elem ebbe a <g>-be kerül, a zoom ezt transzformálja.
+  const zoomG=svg.append("g");
+
+  const zoom=d3.zoom()
+    .scaleExtent([0.4,8])
+    .on("zoom",e=>zoomG.attr("transform",e.transform));
+  svg.call(zoom).on("dblclick.zoom",null);
+  svg.on("dblclick",()=>svg.transition().duration(450).call(zoom.transform,d3.zoomIdentity));
+
+  const link=zoomG.append("g").selectAll("line").data(links).join("line")
+    .attr("class","glink")
+    .attr("stroke-width",l=>1+(l.weight/maxW)*6);
+
+  const node=zoomG.append("g").selectAll("circle").data(nodes).join("circle")
+    .attr("class","gnode")
+    .attr("r",n=>7+(n.strength/maxStr)*20)
+    .attr("fill",(n,i)=>color(i%20))
+    .call(d3.drag()
+      .on("start",(e,d)=>{if(!e.active)meshSim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on("drag",(e,d)=>{d.fx=e.x;d.fy=e.y;})
+      .on("end",(e,d)=>{if(!e.active)meshSim.alphaTarget(0);d.fx=null;d.fy=null;}));
+
+  node.on("mousemove",(e,d)=>{
+      tip.style.opacity=1;
+      tip.style.left=(e.clientX+14)+"px";
+      tip.style.top=(e.clientY+14)+"px";
+      tip.innerHTML="<b>"+esc(d.id)+"</b><br>"+d.deg+" co-author"+(d.deg===1?"":"s")+" · "+d.strength+" shared works";
+    })
+    .on("mouseleave",()=>{tip.style.opacity=0;});
+
+  // Rövidített címke: max 16 karakter — a teljes név a hover-tooltipben.
+  const label=zoomG.append("g").selectAll("text").data(nodes).join("text")
+    .attr("class","glabel").attr("dx",16).attr("dy",7)
+    .text(n=>n.id.length>16?n.id.slice(0,14)+"…":n.id);
+
+  // Elrendezés: gyenge x/y erő húzza a magányos párokat is a közép felé,
+  // így nem szóródnak a sarkokba — a hely jobban kihasznált.
+  meshSim=d3.forceSimulation(nodes)
+    .force("link",d3.forceLink(links).id(d=>d.id).distance(l=>130-(l.weight/maxW)*45).strength(.55))
+    .force("charge",d3.forceManyBody().strength(-560))
+    .force("x",d3.forceX(W/2).strength(.07))
+    .force("y",d3.forceY(H/2).strength(.09))
+    .force("collide",d3.forceCollide().radius(n=>20+(n.strength/maxStr)*20))
+    .on("tick",()=>{
+      link.attr("x1",l=>l.source.x).attr("y1",l=>l.source.y)
+          .attr("x2",l=>l.target.x).attr("y2",l=>l.target.y);
+      node.attr("cx",d=>d.x).attr("cy",d=>d.y);
+      label.attr("x",d=>d.x).attr("y",d=>d.y);
+    });
+}
+
 // ── Shared retraction check ─────────────────────────────────────────────────
-// Check each DOI, at most 4 in flight at once, updating cells with id prefix+i.
-// Each /check call is capped at 20s; on timeout or error the row shows "unverified".
 async function checkRetractions(rows,prefix){
   const queue=rows.map((r,i)=>({i,doi:paperDOI(r)})).filter(x=>x.doi);
   let active=0, idx=0;
@@ -638,6 +832,31 @@ async function checkRetractions(rows,prefix){
     next();
   });
 }
+
+// Delegált rendezés: bármelyik eredmény-táblázat fejlécére kattintva rendez.
+document.addEventListener("click",e=>{
+  const th=e.target.closest(".results table th");
+  if(!th)return;
+  const table=th.closest("table"), tbody=table.querySelector("tbody");
+  if(!tbody)return;
+  const idx=[...th.parentNode.children].indexOf(th);
+  const asc=!th.classList.contains("sorted-asc");
+  [...th.parentNode.children].forEach(x=>x.classList.remove("sorted-asc","sorted-desc"));
+  th.classList.add(asc?"sorted-asc":"sorted-desc");
+  const val=tr=>{
+    const td=tr.children[idx];
+    const t=td?td.textContent.trim():"";
+    const n=parseFloat(t.replace(/[^0-9.\-]/g,""));
+    return (t!==""&&!isNaN(n)&&/[0-9]/.test(t))?n:t.toLowerCase();
+  };
+  const rows=[...tbody.querySelectorAll("tr")];
+  rows.sort((a,b)=>{
+    const x=val(a),y=val(b);
+    if(typeof x==="number"&&typeof y==="number")return asc?x-y:y-x;
+    return asc?String(x).localeCompare(String(y)):String(y).localeCompare(String(x));
+  });
+  rows.forEach(r=>tbody.appendChild(r));
+});
 </script>
 </body>
 </html>
