@@ -1,9 +1,14 @@
-// Command thelancet-web serves a single-page UI plus six JSON endpoints:
+// Command bibliovera-web serves a single-page UI plus six JSON endpoints:
 // GET /affiliations, /authors, /drift, /curate, /mesh, and /check, that mirror
-// the thelancet CLI's analytics commands. The /check endpoint integrates the
+// the journal-analytics CLI's commands. The /check endpoint integrates the
 // retraction-checker CLI for batch verification. All endpoints are read-only and
 // keyless (analytics take no LLM key). Query params are whitelisted and passed
 // as discrete argv elements (no shell).
+//
+// Bibliovera is the journal-analytics app of the Pubvera bundle. Note that the
+// CLI binary name (thelancet-pp-cli) and the THELANCET_DB environment variable
+// keep their original names on purpose: they refer to the upstream tool and to
+// the Docker/Render configuration, and renaming them would break the deploy.
 //
 // Post-processing (done here, not in the CLI):
 //   - /authors:      minWorks filter removes single-consortium-paper authors.
@@ -90,7 +95,7 @@ func main() {
 		addr = "0.0.0.0:" + p
 	}
 	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-	log.Printf("thelancet-web listening on %s (CLI: %s, DB: %s)", addr, cliBinaryPath(), dbPath())
+	log.Printf("bibliovera-web listening on %s (CLI: %s, DB: %s)", addr, cliBinaryPath(), dbPath())
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
@@ -427,7 +432,7 @@ func jsonInt(v any) int {
 	return 0
 }
 
-// runCLIRaw executes the thelancet CLI and returns its validated JSON stdout.
+// runCLIRaw executes the analytics CLI and returns its validated JSON stdout.
 func runCLIRaw(parent context.Context, args []string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(parent, 60*time.Second)
 	defer cancel()
