@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pubvera — Medical Journal Analytics</title>
+<title>Bibliovera — Medical Journal Analytics · Pubvera</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
@@ -205,7 +205,7 @@
 <body>
 
 <section class="hero">
-  <h1>📊 Pubvera</h1>
+  <h1>📊 Pubvera · Bibliovera</h1>
   <p>Institution growth, author rankings and topic trends across the medical journal
   literature,<br>computed from a local OpenAlex mirror — keyless, data-driven analytics.</p>
 </section>
@@ -392,12 +392,12 @@
 </div></div>
 
 <footer>
-  Pubvera · serve-mode research analytics · <a href="https://github.com/laci141/thelancet-web" target="_blank" rel="noopener">GitHub</a>
+  Bibliovera — a Pubvera app · serve-mode research analytics · <a href="https://github.com/laci141/thelancet-web" target="_blank" rel="noopener">GitHub</a>
   · Powered by <a href="https://github.com/mvanhorn/printing-press-library" target="_blank" rel="noopener">Printing Press Library</a>
 </footer>
 
 <div class="disclaimer">
-  Pubvera is an independent research-analytics tool. It is not affiliated with, endorsed by,
+  Bibliovera is an independent research-analytics tool. It is not affiliated with, endorsed by,
   or sponsored by The Lancet, Elsevier, or any journal listed in this application.
   Journal names are trademarks of their respective owners and are used solely to identify
   publicly available publication metadata, sourced from OpenAlex (CC0).
@@ -507,7 +507,7 @@ function downloadXLSX(key,filename){
   ws["!cols"]=colInfo.map(ci=>({wch:ci.wch}));
   ws["!freeze"]={xSplit:0,ySplit:1};
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,"Pubvera");
+  XLSX.utils.book_append_sheet(wb,ws,"Bibliovera");
   XLSX.writeFile(wb,filename);
 }
 
@@ -537,7 +537,7 @@ function toBibTeX(rows){
     if(year)    lines.push("  year    = {"+year+"},");
     if(doi)     lines.push("  doi     = {"+doi+"},");
     if(doi)     lines.push("  url     = {https://doi.org/"+doi+"},");
-    lines.push("  note    = {Exported from Pubvera; metadata via OpenAlex (CC0)}");
+    lines.push("  note    = {Exported from Bibliovera (Pubvera bundle); metadata via OpenAlex (CC0)}");
     lines.push("}");
     out.push(lines.join("\n"));
   });
@@ -561,11 +561,11 @@ function analysisBibTeX(key,rows){
   if(metaEl) scope=metaEl.textContent.replace(/\s*·\s*\d+\s*\/\s*\d+\s*rows\s*$/,"").trim();
   const y=new Date().getFullYear();
   const title=bibEsc(label+(scope?": "+scope:""));
-  return "@misc{pubvera_"+key+"_"+y+",\n"+
+  return "@misc{bibliovera_"+key+"_"+y+",\n"+
     "  title  = {"+title+"},\n"+
-    "  author = {{Pubvera}},\n"+
+    "  author = {{Bibliovera}},\n"+
     "  year   = {"+y+"},\n"+
-    "  howpublished = {Pubvera research analytics},\n"+
+    "  howpublished = {Bibliovera, a Pubvera research analytics app},\n"+
     "  note   = {Bibliometric analysis of "+(rows?rows.length:0)+
       " records; underlying publication metadata from OpenAlex (CC0)},\n"+
     "  url    = {"+window.location.origin+"/}\n"+
@@ -611,7 +611,7 @@ function setW1(y){y=Number(y);$("#drift_w1_v").textContent=y+"–"+(y+4);}
 function setW2(y){y=Number(y);$("#drift_w2_v").textContent=y+"–"+(y+4);}
 
 // restore saved form state
-(function(){try{const s=JSON.parse(localStorage.getItem("pubvera_form")||"{}");
+(function(){try{const s=JSON.parse(localStorage.getItem("bibliovera_form")||"{}");
   if(s.journal)$("#aff_journal").value=s.journal;
   if(s.years){$("#aff_years").value=s.years;$("#aff_years_v").textContent=s.years;}
   if(s.thr){$("#aff_thr").value=s.thr;$("#aff_thr_v").textContent=s.thr;}
@@ -627,7 +627,7 @@ function setW2(y){y=Number(y);$("#drift_w2_v").textContent=y+"–"+(y+4);}
   if(s.rijournal)$("#rise_journal").value=s.rijournal;
   if(s.morg)$("#mesh_org").value=s.morg;
 }catch(e){}})();
-function save(){localStorage.setItem("pubvera_form",JSON.stringify({
+function save(){localStorage.setItem("bibliovera_form",JSON.stringify({
   journal:$("#aff_journal").value,years:$("#aff_years").value,thr:$("#aff_thr").value,
   minp:$("#aff_minp").value,inst:$("#auth_inst").value,minw:$("#auth_minw").value,
   djournal:$("#drift_journal").value,rtopic:$("#read_topic").value,
@@ -677,7 +677,7 @@ function affTable(rows,journal){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No institutions matched.</p>';
   const maxRecent=Math.max(1,...rows.map(r=>Number(r.recent_count)||0));
   let h=metaRow(rows.length+' institutions'+(journal?' · '+esc(journal):' · all journals'),
-    'aff','pubvera-affiliations.json');
+    'aff','bibliovera-affiliations.json');
   h+='<table><thead><tr><th>#</th><th>Institution</th><th style="text-align:right">Recent</th><th style="text-align:right">Prior</th><th>Growth</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{
     const recent=Number(r.recent_count)||0, prior=Number(r.prior_count)||0;
@@ -725,7 +725,7 @@ function authorLink(r){
 }
 function authTable(rows,inst){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No authors matched'+(inst?' for "'+esc(inst)+'"':'')+'.</p>';
-  let h=metaRow(rows.length+' authors'+(inst?' · '+esc(inst):''),'auth','pubvera-authors.json');
+  let h=metaRow(rows.length+' authors'+(inst?' · '+esc(inst):''),'auth','bibliovera-authors.json');
   h+='<table><thead><tr><th>#</th><th>Author</th><th style="text-align:right">Works</th><th style="text-align:right">Citations</th><th style="text-align:right">Avg</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{h+='<tr><td class="n">'+(i+1)+'</td><td>'+authorLink(r)+'</td>'+
     '<td class="n">'+num(r.works)+'</td><td class="n">'+num(r.total_citations)+'</td>'+
@@ -753,7 +753,7 @@ function driftChart(rows,journal,w1,w2){
   const maxAbs=Math.max(...rows.map(r=>Math.abs(Number(r.delta_share)||0)),0.0001);
   const w1lbl=w1.replace(":","–"), w2lbl=w2.replace(":","–");
   let h=metaRow(rows.length+' topics'+(journal?' · '+esc(journal):' · all journals')+
-    ' · '+esc(w1lbl)+' vs '+esc(w2lbl),'drift','pubvera-topic-trends.json');
+    ' · '+esc(w1lbl)+' vs '+esc(w2lbl),'drift','bibliovera-topic-trends.json');
   h+='<div class="drift-legend"><span>🔴 Fading ('+esc(w1lbl)+' stronger)</span>'+
     '<span>Rising ('+esc(w2lbl)+' stronger) 🟢</span></div>';
   rows.forEach(r=>{
@@ -811,7 +811,7 @@ function paperYear(r){return Number(r.year||r.publication_year||0);}
 function readTable(rows,topic){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No papers found for "'+esc(topic)+'".</p>';
   let h=metaRow(rows.length+' papers · "'+esc(topic)+'" · retraction-checked',
-    'read','pubvera-reading-list.json');
+    'read','bibliovera-reading-list.json');
   h+='<table><thead><tr><th>#</th><th>Title</th><th style="text-align:right">Citations</th><th>Status</th></tr></thead><tbody>';
   rows.forEach((r,i)=>{
     const doi=paperDOI(r);
@@ -857,7 +857,7 @@ function riseTable(items,topic,journal,minYear){
     (journal?' in '+esc(journal):'')+'. Try a lower min year or a broader topic.</p>';
   const scope=journal?esc(journal):'all journals';
   let h=metaRow(items.length+' rising papers · "'+esc(topic)+'" · '+scope+' · from '+minYear,
-    'rise','pubvera-rising-papers.json');
+    'rise','bibliovera-rising-papers.json');
   h+='<table><thead><tr><th>#</th><th>Title</th><th style="text-align:right">Year</th>'+
     '<th style="text-align:right">Cites</th><th style="text-align:right">Cites/yr</th><th>Status</th></tr></thead><tbody>';
   items.forEach((x,i)=>{
@@ -892,7 +892,7 @@ async function runMesh(){
     const pairs=Array.isArray(data)?data:[];
     lastData.mesh=pairs;
     if(!pairs.length){res.innerHTML='<p class="meta">No co-authorship pairs found for "'+esc(org)+'". Try a broader institution name.</p>';return;}
-    res.innerHTML=metaRow(pairs.length+' co-authorship pairs · '+esc(org),'mesh','pubvera-collaboration.json')+
+    res.innerHTML=metaRow(pairs.length+' co-authorship pairs · '+esc(org),'mesh','bibliovera-collaboration.json')+
       '<div class="graph-wrap" id="graphWrap"><div class="zoom-hint">🖱️ scroll = zoom · drag = pan · double-click = reset</div></div>'+
       '<p class="note">Each dot is a researcher; each line is shared Lancet papers between two co-authors (thicker = more shared works). Scroll to zoom in on a cluster — labels grow with zoom. Drag empty space to pan, drag a node to move it, double-click to reset the view.</p>';
     drawMeshGraph(pairs);
