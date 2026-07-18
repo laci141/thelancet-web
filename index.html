@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Pubvera — Medical Journal Analytics</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth;font-size:160%}
@@ -82,7 +83,11 @@
     padding:4px 14px;border-radius:999px;font-size:.75rem;font-weight:600;cursor:pointer;
     transition:.2s;white-space:nowrap;flex-shrink:0}
   .dl:hover{background:rgba(255,255,255,.15);border-color:var(--c);color:#fff}
-  .dl-group{display:flex;gap:8px;flex-shrink:0}
+  .dl-group{display:flex;gap:8px;flex-shrink:0;align-items:center}
+  .qfilter{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.16);border-radius:999px;
+    padding:4px 14px;color:#e8eef7;font-size:.78rem;width:190px}
+  .qfilter:focus{outline:none;border-color:var(--c)}
+  .qcount{color:#7dd3fc;font-size:.78rem;font-weight:600;margin-left:6px}
 
   table{width:100%;border-collapse:collapse;font-size:.88rem}
   th,td{text-align:left;padding:.5rem .9rem .5rem 0;border-bottom:1px solid rgba(255,255,255,.07)}
@@ -324,6 +329,16 @@
       <input type="range" id="read_lim" min="5" max="40" value="15" oninput="read_lim_v.textContent=this.value">
     </div>
   </div>
+  <div class="row2">
+    <div>
+      <label>Min year · <span class="val" id="read_year_v">2005 (all)</span></label>
+      <input type="range" id="read_year" min="2005" max="2026" value="2005" oninput="read_year_v.textContent=this.value==='2005'?'2005 (all)':this.value">
+    </div>
+    <div>
+      <label>Min citations · <span class="val" id="read_cites_v">0 (all)</span></label>
+      <input type="range" id="read_cites" min="0" max="500" step="10" value="0" oninput="read_cites_v.textContent=this.value==='0'?'0 (all)':this.value">
+    </div>
+  </div>
   <button class="btn" onclick="runRead()">Build Reading List</button>
   <div class="results" id="read_res"></div>
 </div></div>
@@ -351,8 +366,16 @@
       <input type="range" id="rise_lim" min="10" max="60" value="40" oninput="rise_lim_v.textContent=this.value">
     </div>
   </div>
-  <label>Min year (only papers from this year on) · <span class="val" id="rise_year_v">2018</span></label>
-  <input type="range" id="rise_year" min="2005" max="2024" value="2018" oninput="rise_year_v.textContent=this.value">
+  <div class="row2">
+    <div>
+      <label>Min year (only papers from this year on) · <span class="val" id="rise_year_v">2018</span></label>
+      <input type="range" id="rise_year" min="2005" max="2024" value="2018" oninput="rise_year_v.textContent=this.value">
+    </div>
+    <div>
+      <label>Min citations · <span class="val" id="rise_cites_v">0 (all)</span></label>
+      <input type="range" id="rise_cites" min="0" max="500" step="10" value="0" oninput="rise_cites_v.textContent=this.value==='0'?'0 (all)':this.value">
+    </div>
+  </div>
   <button class="btn" onclick="runRise()">Find Rising Papers</button>
   <div class="results" id="rise_res"></div>
 </div></div>
@@ -409,24 +432,30 @@ function toCSV(rows){
   const cols=[];
   rows.forEach(r=>Object.keys(r||{}).forEach(k=>{if(!cols.includes(k))cols.push(k);}));
   const cell=v=>{
-    if(v===null||v===undefined)return "";
+    if(v===null||v===undefined||v===false)return "";
+    if(v===true)return "Yes";
     let s=(typeof v==="object")?JSON.stringify(v):String(v);
     if(/[",\r\n]/.test(s)) s='"'+s.replace(/"/g,'""')+'"';
     return s;
   };
-  const lines=[cols.map(cell).join(",")];
+  const lines=["sep=,",cols.map(cell).join(",")];
   rows.forEach(r=>lines.push(cols.map(c=>cell(r?r[c]:"")).join(",")));
   return "\uFEFF"+lines.join("\r\n");
 }
 
-function downloadCSV(key,filename){
+function rowsFromLastData(key){
   const d=lastData[key];
-  if(!d){alert("Run an analysis first.");return;}
-  let rows=null;
-  if(Array.isArray(d)) rows=d;
-  else if(d&&typeof d==="object"){
-    for(const k of Object.keys(d)){ if(Array.isArray(d[k])){rows=d[k];break;} }
+  if(!d)return null;
+  if(Array.isArray(d))return d;
+  if(typeof d==="object"){
+    for(const k of Object.keys(d)){ if(Array.isArray(d[k]))return d[k]; }
   }
+  return null;
+}
+
+function downloadCSV(key,filename){
+  if(!lastData[key]){alert("Run an analysis first.");return;}
+  const rows=rowsFromLastData(key);
   if(!rows||!rows.length){alert("CSV export is not available for this result — use JSON.");return;}
   const blob=new Blob([toCSV(rows)],{type:"text/csv;charset=utf-8"});
   const url=URL.createObjectURL(blob);
@@ -437,10 +466,142 @@ function downloadCSV(key,filename){
   URL.revokeObjectURL(url);
 }
 
+// Igazi .xlsx: középre igazított cellák, félkövér fejléc, auto oszlopszélesség.
+function downloadXLSX(key,filename){
+  if(!lastData[key]){alert("Run an analysis first.");return;}
+  const rows=rowsFromLastData(key);
+  if(!rows||!rows.length){alert("Excel export is not available for this result — use JSON.");return;}
+  const cols=[];
+  rows.forEach(r=>Object.keys(r||{}).forEach(k=>{if(!cols.includes(k))cols.push(k);}));
+  const aoa=[cols].concat(rows.map(r=>cols.map(c=>{
+    const v=r?r[c]:"";
+    if(v===null||v===undefined||v===false)return "";
+    if(v===true)return "Yes";
+    return (typeof v==="object")?JSON.stringify(v):v;
+  })));
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  // Oszlop-elemzés: hosszú szöveg (cím, topic) balra + tág; rövid/szám középen.
+  const colInfo=cols.map(c=>{
+    let max=String(c).length, sum=0, cnt=0;
+    rows.forEach(r=>{const v=r?r[c]:"";const L=String(v==null?"":v).length;if(L>max)max=L;sum+=L;cnt++;});
+    const avg=cnt?sum/cnt:0;
+    const isLong=(max>22)||(avg>18);
+    return {wch:Math.min(Math.max(max+2,9),isLong?90:24), left:isLong};
+  });
+  const range=XLSX.utils.decode_range(ws["!ref"]);
+  const centerH={vertical:"center",horizontal:"center",wrapText:false};
+  for(let R=range.s.r;R<=range.e.r;R++){
+    for(let C=range.s.c;C<=range.e.c;C++){
+      const addr=XLSX.utils.encode_cell({r:R,c:C});
+      if(!ws[addr])continue;
+      if(R===0){
+        ws[addr].s={font:{bold:true,color:{rgb:"FFFFFF"}},alignment:centerH,
+          fill:{fgColor:{rgb:"4472C4"}},
+          border:{bottom:{style:"thin",color:{rgb:"999999"}}}};
+      }else{
+        ws[addr].s={alignment:{vertical:"center",
+          horizontal:(colInfo[C]&&colInfo[C].left)?"left":"center",wrapText:false}};
+      }
+    }
+  }
+  ws["!cols"]=colInfo.map(ci=>({wch:ci.wch}));
+  ws["!freeze"]={xSplit:0,ySplit:1};
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Pubvera");
+  XLSX.writeFile(wb,filename);
+}
+
+// BibTeX generálás cikk-listákból (Reading List, Rising Papers).
+function bibKey(r,i){
+  const t=String(r.title||r.display_name||"item").split(/\s+/)[0].replace(/[^A-Za-z0-9]/g,"");
+  const y=Number(r.year||r.publication_year||0)||"";
+  return (t||"ref").toLowerCase()+(y||"")+"_"+(i+1);
+}
+function bibEsc(v){ return String(v==null?"":v).replace(/[{}\\]/g,"").trim(); }
+
+function toBibTeX(rows){
+  const out=[];
+  rows.forEach((r,i)=>{
+    const title=bibEsc(r.title||r.display_name||"");
+    if(!title)return;
+    const doi=String(r.doi||r.DOI||"").replace(/^https?:\/\/(dx\.)?doi\.org\//i,"").trim();
+    const year=Number(r.year||r.publication_year||0);
+    const journal=bibEsc(r.journal||r.source||r.venue||"");
+    const authors=Array.isArray(r.authors)
+      ? r.authors.map(a=>bibEsc(typeof a==="string"?a:(a&&(a.name||a.author_name)||""))).filter(Boolean).join(" and ")
+      : bibEsc(r.authors||r.author||"");
+    const lines=["@article{"+bibKey(r,i)+","];
+    lines.push("  title   = {"+title+"},");
+    if(authors) lines.push("  author  = {"+authors+"},");
+    if(journal) lines.push("  journal = {"+journal+"},");
+    if(year)    lines.push("  year    = {"+year+"},");
+    if(doi)     lines.push("  doi     = {"+doi+"},");
+    if(doi)     lines.push("  url     = {https://doi.org/"+doi+"},");
+    lines.push("  note    = {Exported from Pubvera; metadata via OpenAlex (CC0)}");
+    lines.push("}");
+    out.push(lines.join("\n"));
+  });
+  return out.join("\n\n")+"\n";
+}
+
+// @misc hivatkozás magára az ELEMZÉSRE (ahol nincs cikk-lista:
+// affiliations, authors, topic trends, collaboration). Ez szabványos
+// dataset/szoftver-hivatkozás, nem hamis cikk-bejegyzés.
+const ANALYSIS_LABEL={
+  aff:"Affiliation growth analysis",
+  auth:"Author ranking analysis",
+  drift:"Topic trend analysis",
+  mesh:"Co-authorship network analysis"
+};
+function analysisBibTeX(key,rows){
+  const label=ANALYSIS_LABEL[key]||"Bibliometric analysis";
+  // A modul meta-sorából vesszük a lekérdezés leírását (pl. "25 institutions · lancet").
+  let scope="";
+  const metaEl=document.querySelector("#"+key+"_res .meta");
+  if(metaEl) scope=metaEl.textContent.replace(/\s*·\s*\d+\s*\/\s*\d+\s*rows\s*$/,"").trim();
+  const y=new Date().getFullYear();
+  const title=bibEsc(label+(scope?": "+scope:""));
+  return "@misc{pubvera_"+key+"_"+y+",\n"+
+    "  title  = {"+title+"},\n"+
+    "  author = {{Pubvera}},\n"+
+    "  year   = {"+y+"},\n"+
+    "  howpublished = {Pubvera research analytics},\n"+
+    "  note   = {Bibliometric analysis of "+(rows?rows.length:0)+
+      " records; underlying publication metadata from OpenAlex (CC0)},\n"+
+    "  url    = {"+window.location.origin+"/}\n"+
+    "}\n";
+}
+
+function downloadBibTeX(key,filename){
+  if(!lastData[key]){alert("Run an analysis first.");return;}
+  const rows=rowsFromLastData(key);
+  const papers=(rows||[]).filter(r=>r&&(r.title||r.display_name));
+  // Cikk-listánál igazi @article; egyébként @misc hivatkozás az elemzésre.
+  const text=papers.length?toBibTeX(papers):analysisBibTeX(key,rows);
+  const blob=new Blob([text],{type:"application/x-bibtex;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function metaRow(text,key,filename){
   const csvName=String(filename).replace(/\.json$/i,".csv");
-  return '<div class="meta-row"><span class="meta">'+text+'</span>'+
+  const xlsxName=String(filename).replace(/\.json$/i,".xlsx");
+  const bibName=String(filename).replace(/\.json$/i,".bib");
+  // BibTeX minden modulban: cikk-listánál @article, elemzésnél @misc.
+  const bibTitle=(key==="read"||key==="rise")
+    ? "BibTeX citations for these papers"
+    : "BibTeX citation for this analysis (@misc)";
+  const bibBtn='<button class="dl" title="'+bibTitle+'" onclick="downloadBibTeX(\''+key+
+    '\',\''+bibName+'\')">⬇ BibTeX</button>';
+  return '<div class="meta-row"><span class="meta">'+text+'<span class="qcount"></span></span>'+
     '<span class="dl-group">'+
+    '<input class="qfilter" type="text" placeholder="🔍 Filter results…">'+
+    bibBtn+
+    '<button class="dl" onclick="downloadXLSX(\''+key+'\',\''+xlsxName+'\')">⬇ Excel</button>'+
     '<button class="dl" onclick="downloadCSV(\''+key+'\',\''+csvName+'\')">⬇ CSV</button>'+
     '<button class="dl" onclick="downloadJSON(\''+key+'\',\''+filename+'\')">⬇ JSON</button>'+
     '</span></div>';
@@ -460,6 +621,9 @@ function setW2(y){y=Number(y);$("#drift_w2_v").textContent=y+"–"+(y+4);}
   if(s.djournal)$("#drift_journal").value=s.djournal;
   if(s.rtopic)$("#read_topic").value=s.rtopic;
   if(s.ritopic)$("#rise_topic").value=s.ritopic;
+  if(s.ryear){$("#read_year").value=s.ryear;$("#read_year_v").textContent=s.ryear==="2005"?"2005 (all)":s.ryear;}
+  if(s.rcites){$("#read_cites").value=s.rcites;$("#read_cites_v").textContent=s.rcites==="0"?"0 (all)":s.rcites;}
+  if(s.ricites){$("#rise_cites").value=s.ricites;$("#rise_cites_v").textContent=s.ricites==="0"?"0 (all)":s.ricites;}
   if(s.rijournal)$("#rise_journal").value=s.rijournal;
   if(s.morg)$("#mesh_org").value=s.morg;
 }catch(e){}})();
@@ -468,6 +632,7 @@ function save(){localStorage.setItem("pubvera_form",JSON.stringify({
   minp:$("#aff_minp").value,inst:$("#auth_inst").value,minw:$("#auth_minw").value,
   djournal:$("#drift_journal").value,rtopic:$("#read_topic").value,
   ritopic:$("#rise_topic").value,rijournal:$("#rise_journal").value,
+  ryear:$("#read_year").value,rcites:$("#read_cites").value,ricites:$("#rise_cites").value,
   morg:$("#mesh_org").value}));}
 
 function openModal(k){$("#"+k+"Modal").classList.add("active");}
@@ -623,7 +788,11 @@ async function runRead(){
   const res=$("#read_res"); res.innerHTML='<span class="spin"></span> Building list…';
   try{
     const data=await fetchJSON("/curate?"+p.toString());
-    const rows=Array.isArray(data)?data:(data.works||data.results||[]);
+    let rows=Array.isArray(data)?data:(data.works||data.results||[]);
+    const minY=Number($("#read_year").value), minC=Number($("#read_cites").value);
+    if(minY>2005||minC>0){
+      rows=rows.filter(r=>(minY<=2005||paperYear(r)>=minY)&&(paperCitations(r)>=minC));
+    }
     lastData.read=rows;
     res.innerHTML=readTable(rows,topic);
     checkRetractions(rows,"st-");
@@ -674,9 +843,10 @@ async function runRise(){
       const yr=paperYear(r), cites=paperCitations(r);
       const age=Math.max(1,CUR_YEAR-yr+1);
       return {r,yr,cites,velocity:(yr>0?cites/age:0)};
-    }).filter(x=>x.yr>=minYear && x.yr>0)
+    }).filter(x=>x.yr>=minYear && x.yr>0 && x.cites>=Number($("#rise_cites").value))
       .sort((a,b)=>b.velocity-a.velocity);
     lastData.rise=enriched.map(x=>({title:x.r.title,doi:paperDOI(x.r),year:x.yr,
+      journal:x.r.journal||x.r.source||"",authors:x.r.authors||"",
       cited_by_count:x.cites,citations_per_year:Math.round(x.velocity*10)/10}));
     res.innerHTML=riseTable(enriched,topic,j,minYear);
     checkRetractions(enriched.map(x=>x.r),"rst-");
@@ -832,6 +1002,25 @@ async function checkRetractions(rows,prefix){
     next();
   });
 }
+
+// Delegált gyorsszűrő: gépelésre elrejti a nem illeszkedő sorokat, számlálóval.
+document.addEventListener("input",e=>{
+  const inp=e.target.closest(".qfilter");
+  if(!inp)return;
+  const res=inp.closest(".results");
+  const table=res?res.querySelector("table"):null;
+  if(!table)return;
+  const q=inp.value.trim().toLowerCase();
+  const rows=[...table.querySelectorAll("tbody tr")];
+  let vis=0;
+  rows.forEach(r=>{
+    const show=!q||r.textContent.toLowerCase().includes(q);
+    r.style.display=show?"":"none";
+    if(show)vis++;
+  });
+  const cnt=res.querySelector(".qcount");
+  if(cnt)cnt.textContent=q?(" · "+vis+" / "+rows.length+" rows"):"";
+});
 
 // Delegált rendezés: bármelyik eredmény-táblázat fejlécére kattintva rendez.
 document.addEventListener("click",e=>{
