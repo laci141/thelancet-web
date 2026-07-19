@@ -416,9 +416,23 @@ const CUR_YEAR=new Date().getFullYear();
 const lastData={aff:null,auth:null,drift:null,read:null,rise:null,mesh:null};
 
 function downloadJSON(key,filename){
-  const d=lastData[key];
-  if(!d){alert("Run an analysis first.");return;}
-  const blob=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});
+  if(!lastData[key]){alert("Run an analysis first.");return;}
+  const er=exportRows(key);
+  if(!er.rows.length){alert("Run an analysis first — or clear the filters, nothing is visible.");return;}
+  const payload={
+    export:{
+      app:"Bibliovera",
+      analysis:EXPORT_LABEL[key]||"Bibliometric analysis",
+      query:moduleQuery(key),
+      filters:er.scope,
+      rows_exported:er.rows.length,
+      rows_total:(rowsFromLastData(key)||[]).length,
+      source:"OpenAlex (CC0)",
+      exported_at:new Date().toISOString()
+    },
+    rows:er.rows
+  };
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
   a.href=url;a.download=filename;
@@ -428,7 +442,7 @@ function downloadJSON(key,filename){
 }
 
 // Bármilyen sor-tömböt CSV-vé alakít (RFC4180). Excel-barát: BOM + CRLF.
-function toCSV(rows){
+function toCSV(rows,header){
   const cols=[];
   rows.forEach(r=>Object.keys(r||{}).forEach(k=>{if(!cols.includes(k))cols.push(k);}));
   const cell=v=>{
@@ -438,7 +452,9 @@ function toCSV(rows){
     if(/[",\r\n]/.test(s)) s='"'+s.replace(/"/g,'""')+'"';
     return s;
   };
-  const lines=["sep=,",cols.map(cell).join(",")];
+  const lines=["sep=,"];
+  if(header)lines.push(cell(header));
+  lines.push(cols.map(cell).join(","));
   rows.forEach(r=>lines.push(cols.map(c=>cell(r?r[c]:"")).join(",")));
   return "\uFEFF"+lines.join("\r\n");
 }
@@ -453,11 +469,58 @@ function rowsFromLastData(key){
   return null;
 }
 
+// Live view registry: every module that filters or sorts its table registers a
+// getter returning the rows exactly as the user currently sees them, plus the
+// filters that produced them. Without this the exports silently ignore the
+// on-screen filters and hand back the full result set.
+const viewProviders={};
+
+function registerView(key,fn){ viewProviders[key]=fn; }
+
+function exportRows(key){
+  const p=viewProviders[key];
+  if(typeof p==="function"){
+    const v=p()||{};
+    return {rows:Array.isArray(v.rows)?v.rows:[], scope:(v.filters||[]).join(" · ")};
+  }
+  return {rows:rowsFromLastData(key)||[], scope:""};   // fallback: unfiltered module
+}
+
+// Filtering and sorting are DOM-level (qfilter hides <tr>s, header clicks
+// reorder them), so the single source of truth for "what the user sees" is the
+// table itself: each <tr> carries data-i pointing back into rowsFromLastData.
+function domView(key){
+  const res=document.getElementById(key+"_res");
+  const base=rowsFromLastData(key)||[];
+  const table=res?res.querySelector("table"):null;
+  if(!table) return {rows:base,filters:[]};
+  const rows=[];
+  table.querySelectorAll("tbody tr").forEach(tr=>{
+    if(tr.style.display==="none")return;
+    const i=Number(tr.getAttribute("data-i"));
+    if(Number.isInteger(i)&&base[i]!==undefined)rows.push(base[i]);
+  });
+  const filters=[];
+  const q=res.querySelector(".qfilter");
+  if(q&&q.value.trim())filters.push('filter: "'+q.value.trim()+'"');
+  const th=table.querySelector("th.sorted-asc,th.sorted-desc");
+  if(th)filters.push("sorted by "+th.textContent.trim()+
+    (th.classList.contains("sorted-asc")?" (asc)":" (desc)"));
+  return {rows:rows,filters:filters};
+}
+
+registerView("aff",()=>domView("aff"));
+registerView("auth",()=>domView("auth"));
+registerView("read",()=>domView("read"));
+registerView("rise",()=>domView("rise"));
+// drift + mesh render charts, not tables — the qfilter cannot narrow them,
+// so their exports fall back to the full module data (which IS what's shown).
+
 function downloadCSV(key,filename){
   if(!lastData[key]){alert("Run an analysis first.");return;}
-  const rows=rowsFromLastData(key);
-  if(!rows||!rows.length){alert("CSV export is not available for this result — use JSON.");return;}
-  const blob=new Blob([toCSV(rows)],{type:"text/csv;charset=utf-8"});
+  const rows=exportRows(key).rows;
+  if(!rows.length){alert("Run an analysis first — or clear the filters, nothing is visible.");return;}
+  const blob=new Blob([toCSV(rows,exportHeader(key,rows))],{type:"text/csv;charset=utf-8"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
   a.href=url;a.download=filename;
@@ -469,11 +532,12 @@ function downloadCSV(key,filename){
 // Igazi .xlsx: középre igazított cellák, félkövér fejléc, auto oszlopszélesség.
 function downloadXLSX(key,filename){
   if(!lastData[key]){alert("Run an analysis first.");return;}
-  const rows=rowsFromLastData(key);
-  if(!rows||!rows.length){alert("Excel export is not available for this result — use JSON.");return;}
+  const rows=exportRows(key).rows;
+  if(!rows.length){alert("Run an analysis first — or clear the filters, nothing is visible.");return;}
   const cols=[];
   rows.forEach(r=>Object.keys(r||{}).forEach(k=>{if(!cols.includes(k))cols.push(k);}));
-  const aoa=[cols].concat(rows.map(r=>cols.map(c=>{
+  // 0. sor: eredet-címsor (egyesítve), 1. sor: kék fejléc, adat a 2. sortól.
+  const aoa=[[exportHeader(key,rows)],cols].concat(rows.map(r=>cols.map(c=>{
     const v=r?r[c]:"";
     if(v===null||v===undefined||v===false)return "";
     if(v===true)return "Yes";
@@ -495,6 +559,9 @@ function downloadXLSX(key,filename){
       const addr=XLSX.utils.encode_cell({r:R,c:C});
       if(!ws[addr])continue;
       if(R===0){
+        ws[addr].s={font:{italic:true,color:{rgb:"808080"}},
+          alignment:{vertical:"center",horizontal:"left",wrapText:false}};
+      }else if(R===1){
         ws[addr].s={font:{bold:true,color:{rgb:"FFFFFF"}},alignment:centerH,
           fill:{fgColor:{rgb:"4472C4"}},
           border:{bottom:{style:"thin",color:{rgb:"999999"}}}};
@@ -505,7 +572,8 @@ function downloadXLSX(key,filename){
     }
   }
   ws["!cols"]=colInfo.map(ci=>({wch:ci.wch}));
-  ws["!freeze"]={xSplit:0,ySplit:1};
+  ws["!merges"]=[{s:{r:0,c:0},e:{r:0,c:Math.max(cols.length-1,0)}}];
+  ws["!freeze"]={xSplit:0,ySplit:2};
   const wb=XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb,ws,"Bibliovera");
   XLSX.writeFile(wb,filename);
@@ -572,12 +640,46 @@ function analysisBibTeX(key,rows){
     "}\n";
 }
 
+// Export-címkék: az ANALYSIS_LABEL kiegészítve a cikk-listás modulokkal —
+// csak az eredet-sorhoz, az @misc BibTeX-logika érintetlen marad.
+const EXPORT_LABEL=Object.assign({},ANALYSIS_LABEL,{
+  read:"Reading list (retraction-checked)",
+  rise:"Rising papers analysis"
+});
+
+// A modul lekérdezés-leírása a meta-sorból (pl. "25 institutions · lancet"),
+// a végéről levágva a " · 7 / 25 rows" darabszám-kijelzőt.
+function moduleQuery(key){
+  const el=document.querySelector("#"+key+"_res .meta");
+  if(!el)return "";
+  return el.textContent.replace(/\s*·\s*\d+\s*\/\s*\d+\s*rows\s*$/,"").trim();
+}
+
+// Eredet-sor minden exportált fájl elejére: app, elemzés, lekérdezés,
+// showing N of M, aktív szűrők, forrás, dátum.
+function exportHeader(key,rows){
+  const total=(rowsFromLastData(key)||[]).length;
+  const shown=rows?rows.length:0;
+  const parts=["Bibliovera export"];
+  if(EXPORT_LABEL[key]) parts.push(EXPORT_LABEL[key]);
+  const q=moduleQuery(key);
+  if(q) parts.push('query: "'+q+'"');
+  parts.push(total&&total!==shown ? ("showing "+shown+" of "+total+" rows") : (shown+" rows"));
+  const sc=exportRows(key).scope;
+  if(sc) parts.push(sc);
+  parts.push("source: OpenAlex (CC0)");
+  parts.push(new Date().toISOString().slice(0,10));
+  return parts.join(" · ");
+}
+
 function downloadBibTeX(key,filename){
   if(!lastData[key]){alert("Run an analysis first.");return;}
-  const rows=rowsFromLastData(key);
-  const papers=(rows||[]).filter(r=>r&&(r.title||r.display_name));
+  const rows=exportRows(key).rows;
+  if(!rows.length){alert("Run an analysis first — or clear the filters, nothing is visible.");return;}
+  const papers=rows.filter(r=>r&&(r.title||r.display_name));
   // Cikk-listánál igazi @article; egyébként @misc hivatkozás az elemzésre.
-  const text=papers.length?toBibTeX(papers):analysisBibTeX(key,rows);
+  const text="% "+exportHeader(key,rows)+"\n"+
+    (papers.length?toBibTeX(papers):analysisBibTeX(key,rows));
   const blob=new Blob([text],{type:"application/x-bibtex;charset=utf-8"});
   const url=URL.createObjectURL(blob);
   const a=document.createElement("a");
@@ -671,6 +773,7 @@ async function runAff(){
     const data=await fetchJSON("/affiliations?"+p.toString());
     lastData.aff=data;
     res.innerHTML=affTable(data,j);
+    updateQcount(res);
   }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
 }
 function affTable(rows,journal){
@@ -694,7 +797,7 @@ function affTable(rows,journal){
     const barPct=Math.max(4,Math.round(recent/maxRecent*100));
     const bar='<div class="bar-container"><span class="bar-number">'+num(recent)+'</span>'+
       '<div class="bar-chart" style="transform:scaleX('+(barPct/100)+')"></div></div>';
-    h+='<tr><td class="n">'+(i+1)+'</td><td>'+esc(r.institution)+'</td><td class="n">'+bar+'</td>'+
+    h+='<tr data-i="'+i+'"><td class="n">'+(i+1)+'</td><td>'+esc(r.institution)+'</td><td class="n">'+bar+'</td>'+
       '<td class="n">'+num(prior)+'</td><td>'+growth+'</td></tr>';
   });
   h+='</tbody></table>';
@@ -713,6 +816,7 @@ async function runAuth(){
     const data=await fetchJSON("/authors?"+p.toString());
     lastData.auth=data;
     res.innerHTML=authTable(data,inst);
+    updateQcount(res);
   }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
 }
 function authorLink(r){
@@ -727,7 +831,7 @@ function authTable(rows,inst){
   if(!Array.isArray(rows)||!rows.length) return '<p class="meta">No authors matched'+(inst?' for "'+esc(inst)+'"':'')+'.</p>';
   let h=metaRow(rows.length+' authors'+(inst?' · '+esc(inst):''),'auth','bibliovera-authors.json');
   h+='<table><thead><tr><th>#</th><th>Author</th><th style="text-align:right">Works</th><th style="text-align:right">Citations</th><th style="text-align:right">Avg</th></tr></thead><tbody>';
-  rows.forEach((r,i)=>{h+='<tr><td class="n">'+(i+1)+'</td><td>'+authorLink(r)+'</td>'+
+  rows.forEach((r,i)=>{h+='<tr data-i="'+i+'"><td class="n">'+(i+1)+'</td><td>'+authorLink(r)+'</td>'+
     '<td class="n">'+num(r.works)+'</td><td class="n">'+num(r.total_citations)+'</td>'+
     '<td class="n">'+num(r.avg_citations)+'</td></tr>';});
   return h+'</tbody></table>';
@@ -795,6 +899,7 @@ async function runRead(){
     }
     lastData.read=rows;
     res.innerHTML=readTable(rows,topic);
+    updateQcount(res);
     checkRetractions(rows,"st-");
   }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
 }
@@ -817,7 +922,7 @@ function readTable(rows,topic){
     const doi=paperDOI(r);
     const doiLink=doi?'<br><a class="alink" href="https://doi.org/'+encodeURIComponent(doi)+'" target="_blank" rel="noopener noreferrer" style="font-size:.78em;opacity:.7">'+esc(doi)+'</a>':'';
     const status=doi?'<span class="badge-checking" id="st-'+i+'">checking…</span>':'<span class="badge-checking">no DOI</span>';
-    h+='<tr><td class="n">'+(i+1)+'</td><td>'+paperTitle(r)+doiLink+'</td>'+
+    h+='<tr data-i="'+i+'"><td class="n">'+(i+1)+'</td><td>'+paperTitle(r)+doiLink+'</td>'+
       '<td class="n">'+num(paperCitations(r))+'</td><td id="st-'+i+'">'+status+'</td></tr>';
   });
   h+='</tbody></table>';
@@ -849,6 +954,7 @@ async function runRise(){
       journal:x.r.journal||x.r.source||"",authors:x.r.authors||"",
       cited_by_count:x.cites,citations_per_year:Math.round(x.velocity*10)/10}));
     res.innerHTML=riseTable(enriched,topic,j,minYear);
+    updateQcount(res);
     checkRetractions(enriched.map(x=>x.r),"rst-");
   }catch(e){res.innerHTML='<p class="err">'+esc(e.message)+'</p>';}
 }
@@ -865,7 +971,7 @@ function riseTable(items,topic,journal,minYear){
     const doiLink=doi?'<br><a class="alink" href="https://doi.org/'+encodeURIComponent(doi)+'" target="_blank" rel="noopener noreferrer" style="font-size:.78em;opacity:.7">'+esc(doi)+'</a>':'';
     const vel='<span class="badge-velocity">'+num(x.velocity)+'</span>';
     const status=doi?'<span class="badge-checking" id="rst-'+i+'">checking…</span>':'<span class="badge-checking">no DOI</span>';
-    h+='<tr><td class="n">'+(i+1)+'</td><td>'+paperTitle(r)+doiLink+'</td>'+
+    h+='<tr data-i="'+i+'"><td class="n">'+(i+1)+'</td><td>'+paperTitle(r)+doiLink+'</td>'+
       '<td class="n"><span class="year-pill">'+x.yr+'</span></td>'+
       '<td class="n">'+num(x.cites)+'</td><td class="n">'+vel+'</td>'+
       '<td id="rst-'+i+'">'+status+'</td></tr>';
@@ -1003,6 +1109,19 @@ async function checkRetractions(rows,prefix){
   });
 }
 
+// A .qcount mindig a végső, minden szűrő utáni darabszámot mutatja — ennyi
+// sor kerül az exportba is.
+function updateQcount(res){
+  if(!res)return;
+  const cnt=res.querySelector(".qcount");
+  if(!cnt)return;
+  const table=res.querySelector("table");
+  if(!table){cnt.textContent="";return;}
+  const rows=[...table.querySelectorAll("tbody tr")];
+  const vis=rows.filter(r=>r.style.display!=="none").length;
+  cnt.textContent=" · "+vis+" / "+rows.length+" rows";
+}
+
 // Delegált gyorsszűrő: gépelésre elrejti a nem illeszkedő sorokat, számlálóval.
 document.addEventListener("input",e=>{
   const inp=e.target.closest(".qfilter");
@@ -1011,15 +1130,10 @@ document.addEventListener("input",e=>{
   const table=res?res.querySelector("table"):null;
   if(!table)return;
   const q=inp.value.trim().toLowerCase();
-  const rows=[...table.querySelectorAll("tbody tr")];
-  let vis=0;
-  rows.forEach(r=>{
-    const show=!q||r.textContent.toLowerCase().includes(q);
-    r.style.display=show?"":"none";
-    if(show)vis++;
+  table.querySelectorAll("tbody tr").forEach(r=>{
+    r.style.display=(!q||r.textContent.toLowerCase().includes(q))?"":"none";
   });
-  const cnt=res.querySelector(".qcount");
-  if(cnt)cnt.textContent=q?(" · "+vis+" / "+rows.length+" rows"):"";
+  updateQcount(res);
 });
 
 // Delegált rendezés: bármelyik eredmény-táblázat fejlécére kattintva rendez.
