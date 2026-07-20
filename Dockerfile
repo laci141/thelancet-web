@@ -15,7 +15,7 @@ FROM alpine/git:latest AS lfs-fetcher
 RUN apk add --no-cache git-lfs && git lfs install
 WORKDIR /fetch
 # Clone the repo and pull LFS objects (gets the real 117 MB data.db, not pointer).
-RUN git clone https://github.com/laci141/thelancet-web.git . && \
+RUN git clone https://github.com/laci141/pubvera-bibliovera.git . && \
     git lfs pull && \
     ls -lh data.db
 
