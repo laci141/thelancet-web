@@ -95,7 +95,7 @@ func main() {
 		addr = "0.0.0.0:" + p
 	}
 	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-	log.Printf("bibliovera-web listening on %s (CLI: %s, DB: %s)", addr, cliBinaryPath(), dbPath())
+	log.Printf("bibliovera-web listening on %s (CLI: %s, DB: %s, slots=%d)", addr, cliBinaryPath(), dbPath(), cliSem.capacity())
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
@@ -338,6 +338,19 @@ func handleCheck(w http.ResponseWriter, r *http.Request) {
 		args = append(args, pmid)
 	}
 
+	// The retraction check shares the same slot pool as the analytics CLI:
+	// both are child processes on the same two cores. On exhaustion it falls
+	// through to the existing safe fallback rather than a 503 — /check is a
+	// helper lookup in the UI, and an error there would break the page.
+	if err := cliSem.acquire(r.Context()); err != nil {
+		writeJSONValue(w, map[string]any{
+			"retracted": false,
+			"error":     "retraction checker busy; retry shortly",
+		})
+		return
+	}
+	defer cliSem.release()
+
 	// 10-second timeout for retraction check (faster than CLI analytics).
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
@@ -434,6 +447,11 @@ func jsonInt(v any) int {
 
 // runCLIRaw executes the analytics CLI and returns its validated JSON stdout.
 func runCLIRaw(parent context.Context, args []string) ([]byte, error) {
+	if err := cliSem.acquire(parent); err != nil {
+		return nil, err
+	}
+	defer cliSem.release()
+
 	ctx, cancel := context.WithTimeout(parent, 60*time.Second)
 	defer cancel()
 	// #nosec G204 -- fixed subcommand + whitelisted flags with values passed as
@@ -470,4 +488,4 @@ func writeErr(w http.ResponseWriter, err error) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusBadGateway)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-}// watchtower-test 1784986681
+} // watchtower-test 1784986681

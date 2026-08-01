@@ -1,3 +1,3 @@
-module thelancet-web
+module pubvera-bibliovera
 
 go 1.26.4

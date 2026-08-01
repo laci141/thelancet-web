@@ -23,12 +23,12 @@ RUN git clone https://github.com/laci141/pubvera-bibliovera.git . && \
 FROM golang:1.26-alpine AS web-builder
 WORKDIR /build
 COPY go.mod ./
-COPY main.go ./
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /out/server ./main.go
+COPY main.go semaphore.go ./
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o /out/server .
 
 # ---- Stage 3: runtime -------------------------------------------------------
 FROM alpine:latest
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates wget
 WORKDIR /app
 COPY --from=web-builder /out/server ./server
 COPY bin/thelancet-pp-cli-linux ./thelancet
@@ -41,4 +41,6 @@ ENV CLI_BIN=/app/thelancet
 ENV THELANCET_DB=/app/data.db
 ENV RETRACTION_CHECKER_BIN=/app/retraction-checker
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD wget -qO- http://localhost:8080/healthz || exit 1
 CMD ["./server"]
