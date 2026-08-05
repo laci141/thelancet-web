@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Bibliovera — Medical Journal Analytics · Pubvera</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%233b82f6'/%3E%3Cg fill='%23ffffff' transform='translate(32 32) scale(0.82) translate(-32 -32)'%3E%3Crect x='6' y='11' width='42' height='8.1' rx='3.7'/%3E%3Crect x='11.3' y='24' width='31.3' height='8.1' rx='3.7'/%3E%3Crect x='16.7' y='37' width='20.7' height='8.1' rx='3.7'/%3E%3Crect x='22' y='50' width='10' height='8.1' rx='3.7'/%3E%3Crect x='51' y='25.3' width='7' height='5.5' rx='2.75' opacity='0.74'/%3E%3Crect x='51' y='38.3' width='7' height='5.5' rx='2.75' opacity='0.94'/%3E%3Crect x='51' y='51.3' width='7' height='5.5' rx='2.75'/%3E%3C/g%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <style>
@@ -12,21 +13,46 @@
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
     background:#0b1020;color:#e8eef7;line-height:1.6;min-height:100vh}
 
-  /* GLASS-PANEL: színes háttér a panelek ALÁ — enélkül a blur nem látszik */
+  /* GLASS-PANEL: színes háttér a panelek ALÁ — enélkül a blur nem látszik.
+     A foltok a TARTALOM mögé kerültek (35-65% vízszintesen), nem a képernyő
+     széleire: kívül csak feltűnő színes foltok voltak üres helyen, a blur
+     viszont csak ott működik, ahol egy panel ténylegesen rajtuk ül.
+     Az áttetszőség .30/.32 → .16/.18: a szélek így tiszták maradnak, a
+     panelek alatt viszont még bőven van mit elmosni. */
   body::before{
     content:"";position:fixed;inset:0;z-index:-1;
     background:
-      radial-gradient(600px 400px at 15% 20%, rgba(0,212,255,.30), transparent 60%),
-      radial-gradient(700px 500px at 85% 30%, rgba(124,58,237,.32), transparent 60%),
-      radial-gradient(600px 600px at 50% 90%, rgba(34,197,94,.18), transparent 60%),
+      radial-gradient(520px 340px at 38% 28%, rgba(0,212,255,.16), transparent 62%),
+      radial-gradient(560px 380px at 62% 34%, rgba(124,58,237,.18), transparent 62%),
+      radial-gradient(480px 320px at 50% 62%, rgba(34,197,94,.10), transparent 62%),
       #0b1020;
   }
 
+  /* BRAND BAR — fixed top-left, same glass recipe as .card and .disclaimer.
+     Sizes are in px, not rem: html is at font-size:160% on this page, so a
+     rem-based padding copied from another app would render 1.6x too large. */
+  .brand-bar{position:fixed;top:14px;left:14px;z-index:900;
+    display:flex;align-items:center;gap:7px;padding:8px 14px;
+    background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.045));
+    border:1px solid rgba(255,255,255,.12);border-radius:999px;
+    backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);
+    box-shadow:0 18px 50px -18px rgba(0,0,0,.75);
+    text-decoration:none;transition:border-color .2s, transform .2s}
+  .brand-bar:hover{border-color:rgba(255,255,255,.3);transform:translateY(-1px)}
+  /* currentColor drives the inlined mark, so the accent is one declaration.
+     It stays Pubvera blue rather than taking Bibliovera's cyan: the mark is the
+     shared brand, and it must read as the same object on all eight apps. */
+  .brand-mark{color:#60a5fa;flex-shrink:0}
+  .brand-word{font-size:15px;font-weight:700;color:#e8eef7;letter-spacing:-.01em}
+
   .hero{display:flex;flex-direction:column;justify-content:center;align-items:center;
-    padding:2.2rem 2rem .9rem;text-align:center}
+    padding:3.4rem 2rem .9rem;text-align:center}
   .hero h1{font-size:clamp(2rem,5vw,3rem);font-weight:700;margin-bottom:.5rem;
     background:linear-gradient(90deg,#00d4ff,#7c3aed);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .hero p{font-size:1rem;color:#aab}
+  /* Mini diagram a cím mellett — SVG, mert emoji a background-clip:text alatt
+     tömör téglalapként jelenik meg */
+  .h1-mark{width:.8em;height:.8em;vertical-align:-.06em;margin-right:.1em}
 
   .bento{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;padding:.7rem 2rem 2.2rem;max-width:1400px;margin:0 auto}
 
@@ -177,7 +203,7 @@
   @media(max-width:768px){
     html{font-size:120%}
     .bento{grid-template-columns:1fr;padding:.5rem 1rem 1.8rem}
-    .hero{padding:1.6rem 1rem .7rem}
+    .hero{padding:3rem 1rem .7rem}
     .hero p br{display:none}
     .card{border-radius:16px;backdrop-filter:blur(11px);-webkit-backdrop-filter:blur(11px);
       padding:1rem 1.2rem;min-height:84px;box-shadow:0 12px 32px -14px rgba(0,0,0,.7)}
@@ -188,6 +214,12 @@
     .drift-topic{font-size:.78rem;max-width:120px}
     .graph-wrap{height:70vh;min-height:440px}
     .glabel{font-size:17px;stroke-width:5px}
+    /* Same content as desktop, one step smaller. The bar never changes what it
+       says, only how large it says it: a corner that shows the brand on a
+       laptop and hides it on a phone is two different marks, not one. */
+    .brand-bar{top:10px;left:10px;padding:6px 11px;gap:6px;
+      backdrop-filter:blur(11px);-webkit-backdrop-filter:blur(11px)}
+    .brand-word{font-size:13px}
   }
 
   .disclaimer{max-width:1100px;margin:0 auto 2rem;padding:14px 18px;
@@ -204,8 +236,26 @@
 </head>
 <body>
 
+<!-- BRAND BAR — Pubvera mark + wordmark, links back to the hub. The SVG is
+     inlined rather than linked from pubvera.com so the app does not depend on
+     Cloudflare Pages being up, and so the mark can inherit currentColor. -->
+<a class="brand-bar" href="https://pubvera.com" aria-label="Pubvera — back to all tools">
+  <svg class="brand-mark" viewBox="0 0 64 64" width="22" height="22" aria-hidden="true" focusable="false">
+    <g fill="currentColor">
+      <rect x="6.0" y="11.0" width="42.0" height="8.1" rx="3.7"/>
+      <rect x="11.3" y="24.0" width="31.3" height="8.1" rx="3.7"/>
+      <rect x="16.7" y="37.0" width="20.7" height="8.1" rx="3.7"/>
+      <rect x="22.0" y="50.0" width="10.0" height="8.1" rx="3.7"/>
+      <rect x="51" y="25.3" width="7" height="5.5" rx="2.75" opacity="0.55"/>
+      <rect x="51" y="38.3" width="7" height="5.5" rx="2.75" opacity="0.70"/>
+      <rect x="51" y="51.3" width="7" height="5.5" rx="2.75" opacity="0.88"/>
+    </g>
+  </svg>
+  <span class="brand-word">Pubvera</span>
+</a>
+
 <section class="hero">
-  <h1>📊 Pubvera · Bibliovera</h1>
+  <h1><svg class="h1-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect x="8" y="34" width="12" height="22" rx="3" fill="#00d4ff"/><rect x="26" y="22" width="12" height="34" rx="3" fill="#3b82f6"/><rect x="44" y="10" width="12" height="46" rx="3" fill="#7c3aed"/></svg> Bibliovera</h1>
   <p>Institution growth, author rankings and topic trends across the medical journal
   literature,<br>computed from a local OpenAlex mirror — keyless, data-driven analytics.</p>
 </section>
