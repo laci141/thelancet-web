@@ -338,11 +338,17 @@ func handleCheck(w http.ResponseWriter, r *http.Request) {
 		args = append(args, pmid)
 	}
 
+	label := cliCmdLabel(args)
+
 	// The retraction check shares the same slot pool as the analytics CLI:
 	// both are child processes on the same two cores. On exhaustion it falls
 	// through to the existing safe fallback rather than a 503 — /check is a
 	// helper lookup in the UI, and an error there would break the page.
-	if err := cliSem.acquire(r.Context()); err != nil {
+	waitStart := time.Now()
+	err := cliSem.acquire(r.Context())
+	waitMS := time.Since(waitStart).Milliseconds()
+	if err != nil {
+		log.Printf("cli: busy bin=retraction cmd=%s wait_ms=%d err=%v", label, waitMS, err)
 		writeJSONValue(w, map[string]any{
 			"retracted": false,
 			"error":     "retraction checker busy; retry shortly",
@@ -361,7 +367,11 @@ func handleCheck(w http.ResponseWriter, r *http.Request) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
-	if err := cmd.Run(); err != nil {
+	runStart := time.Now()
+	err = cmd.Run()
+	elapsed := time.Since(runStart).Milliseconds()
+	if err != nil {
+		log.Printf("cli: fail bin=retraction cmd=%s wait_ms=%d elapsed_ms=%d err=%v", label, waitMS, elapsed, err)
 		// If retraction-checker is not found or fails, return a safe fallback.
 		writeJSONValue(w, map[string]any{
 			"retracted": false,
@@ -372,12 +382,14 @@ func handleCheck(w http.ResponseWriter, r *http.Request) {
 
 	raw := bytes.TrimSpace(stdout.Bytes())
 	if !json.Valid(raw) {
+		log.Printf("cli: fail bin=retraction cmd=%s wait_ms=%d elapsed_ms=%d err=non-json bytes=%d", label, waitMS, elapsed, len(raw))
 		writeJSONValue(w, map[string]any{
 			"retracted": false,
 			"error":     "invalid JSON from checker",
 		})
 		return
 	}
+	log.Printf("cli: ok bin=retraction cmd=%s wait_ms=%d elapsed_ms=%d bytes=%d", label, waitMS, elapsed, len(raw))
 	writeRaw(w, raw)
 }
 
@@ -445,9 +457,30 @@ func jsonInt(v any) int {
 	return 0
 }
 
+// cliCmdLabel names the subcommand for the log without leaking user input.
+// Every args slice in this file starts with a literal verb and puts user text
+// (a DOI, a PMID, a topic) later, so only the first element is safe to log.
+func cliCmdLabel(args []string) string {
+	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
+		return "?"
+	}
+	return args[0]
+}
+
 // runCLIRaw executes the analytics CLI and returns its validated JSON stdout.
+//
+// wait_ms and elapsed_ms are logged apart because wait_ms is the only way to
+// tell a saturated slot pool from a slow upstream — from outside, both look
+// like one slow page. bin= is on every line because the two binaries share a
+// single slot pool, so one can starve the other.
 func runCLIRaw(parent context.Context, args []string) ([]byte, error) {
-	if err := cliSem.acquire(parent); err != nil {
+	label := cliCmdLabel(args)
+
+	waitStart := time.Now()
+	err := cliSem.acquire(parent)
+	waitMS := time.Since(waitStart).Milliseconds()
+	if err != nil {
+		log.Printf("cli: busy bin=analytics cmd=%s wait_ms=%d err=%v", label, waitMS, err)
 		return nil, err
 	}
 	defer cliSem.release()
@@ -460,17 +493,23 @@ func runCLIRaw(parent context.Context, args []string) ([]byte, error) {
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
+	runStart := time.Now()
+	err = cmd.Run()
+	elapsed := time.Since(runStart).Milliseconds()
+	if err != nil {
 		msg := strings.TrimSpace(stderr.String())
 		if msg == "" {
 			msg = err.Error()
 		}
+		log.Printf("cli: fail bin=analytics cmd=%s wait_ms=%d elapsed_ms=%d err=%v", label, waitMS, elapsed, msg)
 		return nil, fmt.Errorf("analytics failed: %s", msg)
 	}
 	raw := bytes.TrimSpace(stdout.Bytes())
 	if !json.Valid(raw) {
+		log.Printf("cli: fail bin=analytics cmd=%s wait_ms=%d elapsed_ms=%d err=non-json bytes=%d", label, waitMS, elapsed, len(raw))
 		return nil, errors.New("CLI returned non-JSON output")
 	}
+	log.Printf("cli: ok bin=analytics cmd=%s wait_ms=%d elapsed_ms=%d bytes=%d", label, waitMS, elapsed, len(raw))
 	return raw, nil
 }
 

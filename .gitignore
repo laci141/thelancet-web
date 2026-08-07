@@ -14,3 +14,4 @@ bin/server*
 
 # The linux CLI binary IS committed (image copies it): bin/thelancet-pp-cli-linux
 .DS_Store
+PROMPT.md
