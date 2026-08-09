@@ -5,6 +5,10 @@
 // keyless (analytics take no LLM key). Query params are whitelisted and passed
 // as discrete argv elements (no shell).
 //
+// GET /config.json is the one non-analytics endpoint: it hands the page the
+// public Supabase settings it needs to offer Google sign-in. It sits outside
+// the auth-protected paths on purpose — see handleRoot.
+//
 // Bibliovera is the journal-analytics app of the Pubvera bundle. Note that the
 // CLI binary name (thelancet-pp-cli) and the THELANCET_DB environment variable
 // keep their original names on purpose: they refer to the upstream tool and to
@@ -101,18 +105,50 @@ func main() {
 	}
 }
 
+// browserConfig is the bootstrap payload /config.json hands to the page so it
+// can build its Supabase client. SupabaseAnonKey is the PUBLISHABLE
+// (browser-side) key, never the secret one: it is designed to be visible in a
+// browser and Row Level Security is what protects the data. It is still never
+// logged.
+type browserConfig struct {
+	SupabaseURL     string `json:"supabase_url"`
+	SupabaseAnonKey string `json:"supabase_anon_key"`
+}
+
 func handleRoot(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" && r.URL.Path != "/index.html" {
+	switch r.URL.Path {
+	case "/config.json":
+		// Deliberately NOT behind the auth layer: Caddy protects the API paths
+		// with forward_auth, and the page needs this config BEFORE it can sign
+		// anyone in. Serving it from a protected path would make the
+		// requirement circular and force a special-case exception into the
+		// Caddy matcher.
+		//
+		// A missing variable is not an error. An empty pair with status 200 is
+		// a valid answer that puts the page into unauthenticated mode, which is
+		// what keeps local development and the current deployment working until
+		// the environment is set.
+		supaURL := strings.TrimSpace(os.Getenv("SUPABASE_URL"))
+		supaKey := strings.TrimSpace(os.Getenv("SUPABASE_PUBLISHABLE_KEY"))
+		if supaURL == "" || supaKey == "" {
+			supaURL, supaKey = "", ""
+		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		// Never cache: a stale key surviving a key rotation would be hard to
+		// diagnose from the browser side.
+		w.Header().Set("Cache-Control", "no-store")
+		_ = json.NewEncoder(w).Encode(browserConfig{SupabaseURL: supaURL, SupabaseAnonKey: supaKey})
+	case "/", "/index.html":
+		if data, err := os.ReadFile("index.html"); err == nil {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write(data)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte("ok"))
+	default:
 		http.NotFound(w, r)
-		return
 	}
-	if data, err := os.ReadFile("index.html"); err == nil {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write(data)
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain")
-	_, _ = w.Write([]byte("ok"))
 }
 
 // handleAffiliations mirrors GET /affiliations?journal=&years=&threshold=&limit=&minPrior=.
