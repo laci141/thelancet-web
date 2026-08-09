@@ -389,7 +389,17 @@ func handleCheck(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	log.Printf("cli: ok bin=retraction cmd=%s wait_ms=%d elapsed_ms=%d bytes=%d", label, waitMS, elapsed, len(raw))
+	// A successful run can still have written to stderr, and those messages are
+	// the ones worth seeing: the CLI warns there when the OpenAlex per-IP quota
+	// is nearly spent, and prints its rate-limit and server-error retries the
+	// same way. All of them happen while the command goes on to succeed, so
+	// logging stderr only on failure discarded exactly the warnings that arrive
+	// early enough to act on. Operator information — never sent to the client.
+	if w := strings.TrimSpace(stderr.String()); w != "" {
+		log.Printf("cli: ok bin=retraction cmd=%s wait_ms=%d elapsed_ms=%d bytes=%d — stderr: %s", label, waitMS, elapsed, len(raw), truncate(w, 300))
+	} else {
+		log.Printf("cli: ok bin=retraction cmd=%s wait_ms=%d elapsed_ms=%d bytes=%d", label, waitMS, elapsed, len(raw))
+	}
 	writeRaw(w, raw)
 }
 
@@ -509,7 +519,17 @@ func runCLIRaw(parent context.Context, args []string) ([]byte, error) {
 		log.Printf("cli: fail bin=analytics cmd=%s wait_ms=%d elapsed_ms=%d err=non-json bytes=%d", label, waitMS, elapsed, len(raw))
 		return nil, errors.New("CLI returned non-JSON output")
 	}
-	log.Printf("cli: ok bin=analytics cmd=%s wait_ms=%d elapsed_ms=%d bytes=%d", label, waitMS, elapsed, len(raw))
+	// A successful run can still have written to stderr, and those messages are
+	// the ones worth seeing: the CLI warns there when the OpenAlex per-IP quota
+	// is nearly spent, and prints its rate-limit and server-error retries the
+	// same way. All of them happen while the command goes on to succeed, so
+	// logging stderr only on failure discarded exactly the warnings that arrive
+	// early enough to act on. Operator information — never sent to the client.
+	if w := strings.TrimSpace(stderr.String()); w != "" {
+		log.Printf("cli: ok bin=analytics cmd=%s wait_ms=%d elapsed_ms=%d bytes=%d — stderr: %s", label, waitMS, elapsed, len(raw), truncate(w, 300))
+	} else {
+		log.Printf("cli: ok bin=analytics cmd=%s wait_ms=%d elapsed_ms=%d bytes=%d", label, waitMS, elapsed, len(raw))
+	}
 	return raw, nil
 }
 
@@ -528,3 +548,15 @@ func writeErr(w http.ResponseWriter, err error) {
 	w.WriteHeader(http.StatusBadGateway)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 } // watchtower-test 1784986681
+
+// truncate caps a log line at max runes. Rune-based, not byte-based: a
+// stderr message can carry UTF-8, and slicing bytes would split a character
+// and put an invalid sequence in the log. Same shape as pubvera-corpova's,
+// so a line from either app reads identically.
+func truncate(s string, max int) string {
+	r := []rune(s)
+	if len(r) <= max {
+		return s
+	}
+	return string(r[:max]) + "..."
+}
