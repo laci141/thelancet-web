@@ -11,7 +11,15 @@
   *{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth;font-size:160%}
   body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
-    background:#0b1020;color:#e8eef7;line-height:1.6;min-height:100vh}
+    background:#0b1020;color:#e8eef7;line-height:1.6;min-height:100vh;
+    /* Clearance for the fixed .brand-bar, term by term: its 8px padding twice,
+       its tallest child, and the 1px border-bottom. The tallest child is an
+       .auth-btn — 12px text at line-height 1, plus 5px padding and a 1px
+       border on each side — which outgrows the 22px SVG mark.
+       In px, not rem, because html sits at font-size:160% on this page: this
+       deliberately differs from the sibling apps, whose rem-based calc() would
+       resolve to well over double the intended value here. Do not "unify". */
+    padding-top:calc(8px * 2 + max(22px, 12px + 5px * 2 + 2px) + 1px)}
 
   /* GLASS-PANEL: színes háttér a panelek ALÁ — enélkül a blur nem látszik.
      A foltok a TARTALOM mögé kerültek (35-65% vízszintesen), nem a képernyő
@@ -28,41 +36,40 @@
       #0b1020;
   }
 
-  /* BRAND BAR — fixed top-left, same glass recipe as .card and .disclaimer.
+  /* BRAND BAR — one fixed full-width bar across the top, holding the brand on
+     the left and the auth controls on the right. A hairline border-bottom and
+     no radius instead of a pill outline: a pill can rise off the page, a bar
+     that spans the viewport cannot, so there is no hover lift either.
      Sizes are in px, not rem: html is at font-size:160% on this page, so a
-     rem-based padding copied from another app would render 1.6x too large. */
-  .brand-bar{position:fixed;top:14px;left:14px;z-index:900;
+     rem-based padding copied from another app would render 1.6x too large.
+     z-index stays under .modal (1000) so an open modal covers the bar. */
+  .brand-bar{position:fixed;top:0;left:0;right:0;z-index:900;
     display:flex;align-items:center;gap:7px;padding:8px 14px;
     background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.045));
-    border:1px solid rgba(255,255,255,.12);border-radius:999px;
+    border-bottom:1px solid rgba(255,255,255,.12);
     backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);
-    box-shadow:0 18px 50px -18px rgba(0,0,0,.75);
-    text-decoration:none;transition:border-color .2s, transform .2s}
-  .brand-bar:hover{border-color:rgba(255,255,255,.3);transform:translateY(-1px)}
+    box-shadow:0 18px 50px -18px rgba(0,0,0,.75)}
+  /* The bar is no longer the link — the auth controls sit inside it and are not
+     part of the hub navigation, so only the mark and the word are the anchor. */
+  .brand-link{display:flex;align-items:center;gap:7px;text-decoration:none;flex-shrink:0}
   /* currentColor drives the inlined mark, so the accent is one declaration.
      It stays Pubvera blue rather than taking Bibliovera's cyan: the mark is the
      shared brand, and it must read as the same object on all eight apps. */
   .brand-mark{color:#60a5fa;flex-shrink:0}
-  .brand-word{font-size:15px;font-weight:700;color:#e8eef7;letter-spacing:-.01em}
+  .brand-word{font-size:15px;font-weight:700;color:#e8eef7;letter-spacing:-.01em;
+    transition:color .2s}
+  .brand-link:hover .brand-word{color:#60a5fa}
 
-  /* AUTH BAR (Google sign-in) — mirrors .brand-bar in the opposite corner, same
-     glass recipe, so the two fixed corners read as one pair. Sizes are in px
-     for the same reason the brand bar's are: html sits at font-size:160% here,
-     and rem-based padding copied from another app would render 1.6x too large.
-     z-index stays under .modal (1000) so an open modal covers the bar rather
-     than fighting it. Hidden until /config.json returns a Supabase config. */
-  .auth-bar{position:fixed;top:14px;right:14px;z-index:900;
-    display:flex;align-items:center;gap:9px;padding:7px 12px;
-    /* Leaves room for .brand-bar (~103px) plus both insets and a gap, so a long
-       email truncates instead of sliding under the mark on a narrow screen.
-       Percent, not vw: for a fixed element 100% is the layout viewport, while
-       100vw also counts the scrollbar — and that difference is exactly the
-       width by which the two bars would have overlapped. */
-    max-width:calc(100% - 160px);
-    background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.045));
-    border:1px solid rgba(255,255,255,.12);border-radius:999px;
-    backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px);
-    box-shadow:0 18px 50px -18px rgba(0,0,0,.75)}
+  /* AUTH GROUP (Google sign-in) — the right-hand half of .brand-bar. It carries
+     no surface of its own: the bar is the single translucent panel, and a pill
+     nested inside it would double the glass. Sizes are in px for the same
+     reason the bar's are: html sits at font-size:160% here, and rem-based
+     padding copied from another app would render 1.6x too large.
+     Hidden until /config.json returns a Supabase config. */
+  .auth-bar{display:flex;align-items:center;gap:9px;
+    /* margin-left:auto pushes the group to the far end; min-width:0 lets it
+       shrink so .auth-email can ellipsis rather than widening the row. */
+    margin-left:auto;min-width:0}
   /* display:flex above would otherwise defeat the hidden attribute. */
   .auth-bar[hidden]{display:none}
   /* min-width:0 is what lets the ellipsis happen: a flex item defaults to
@@ -73,7 +80,11 @@
      gives way when the bar runs out of room. */
   .auth-btn{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);
     color:#cdd6ea;padding:5px 14px;border-radius:999px;font-size:12px;font-weight:600;
-    cursor:pointer;transition:.2s;white-space:nowrap;flex-shrink:0}
+    cursor:pointer;transition:.2s;white-space:nowrap;flex-shrink:0;
+    /* line-height:1 rather than the browser's font-dependent `normal`, so the
+       button's height is exactly font-size + padding + border — which is what
+       body's padding-top below is derived from. */
+    line-height:1}
   .auth-btn:hover{background:rgba(255,255,255,.15);border-color:#00d4ff;color:#fff}
   /* Signing in is the primary action while signed out, so that button borrows
      the .btn gradient; sign-out stays the quiet variant. */
@@ -82,7 +93,7 @@
   .auth-btn.auth-btn-primary:hover{color:#000;box-shadow:0 8px 24px rgba(0,212,255,.3)}
 
   .hero{display:flex;flex-direction:column;justify-content:center;align-items:center;
-    padding:3.4rem 2rem .9rem;text-align:center}
+    padding:1.2rem 2rem .9rem;text-align:center}
   .hero h1{font-size:clamp(2rem,5vw,3rem);font-weight:700;margin-bottom:.5rem;
     background:linear-gradient(90deg,#00d4ff,#7c3aed);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .hero p{font-size:1rem;color:#aab}
@@ -251,7 +262,7 @@
   @media(max-width:768px){
     html{font-size:120%}
     .bento{grid-template-columns:1fr;padding:.5rem 1rem 1.8rem}
-    .hero{padding:3rem 1rem .7rem}
+    .hero{padding:1rem 1rem .7rem}
     .hero p br{display:none}
     .card{border-radius:16px;backdrop-filter:blur(11px);-webkit-backdrop-filter:blur(11px);
       padding:1rem 1.2rem;min-height:84px;box-shadow:0 12px 32px -14px rgba(0,0,0,.7)}
@@ -263,17 +274,18 @@
     .graph-wrap{height:70vh;min-height:440px}
     .glabel{font-size:17px;stroke-width:5px}
     /* Same content as desktop, one step smaller. The bar never changes what it
-       says, only how large it says it: a corner that shows the brand on a
-       laptop and hides it on a phone is two different marks, not one. */
-    .brand-bar{top:10px;left:10px;padding:6px 11px;gap:6px;
+       says, only how large it says it: a bar that shows the brand on a laptop
+       and hides it on a phone is two different marks, not one. */
+    .brand-bar{padding:6px 11px;gap:6px;
       backdrop-filter:blur(11px);-webkit-backdrop-filter:blur(11px)}
+    .brand-link{gap:6px}
     .brand-word{font-size:13px}
-    /* The two bars share the top row on a phone, so the auth bar shrinks in
-       step with the brand bar and the email is allowed less width — the row
-       has to fit beside the mark without pushing the page sideways. */
-    .auth-bar{top:10px;right:10px;gap:6px;padding:5px 9px;
-      max-width:calc(100% - 130px);
-      backdrop-filter:blur(11px);-webkit-backdrop-filter:blur(11px)}
+    /* Same derivation as the desktop rule, with this block's numbers: 6px of
+       bar padding twice, the tallest child — here the 22px mark wins, the
+       smaller button no longer does — and the 1px border. Still px: html drops
+       to 120% here, which is exactly why the bar's own sizing is not in rem. */
+    body{padding-top:calc(6px * 2 + max(22px, 11px + 4px * 2 + 2px) + 1px)}
+    .auth-bar{gap:6px}
     .auth-email{font-size:11px;max-width:30vw}
     .auth-btn{font-size:11px;padding:4px 10px}
   }
@@ -292,10 +304,12 @@
 </head>
 <body>
 
-<!-- BRAND BAR — Pubvera mark + wordmark, links back to the hub. The SVG is
-     inlined rather than linked from pubvera.com so the app does not depend on
-     Cloudflare Pages being up, and so the mark can inherit currentColor. -->
-<a class="brand-bar" href="https://pubvera.com" aria-label="Pubvera — back to all tools">
+<!-- BRAND BAR — one full-width bar: Pubvera mark + wordmark on the left, the
+     auth controls on the right. Only the mark and the word link back to the
+     hub. The SVG is inlined rather than linked from pubvera.com so the app does
+     not depend on Cloudflare Pages being up, and so it inherits currentColor. -->
+<header class="brand-bar">
+<a class="brand-link" href="https://pubvera.com" aria-label="Pubvera — back to all tools">
   <svg class="brand-mark" viewBox="0 0 64 64" width="22" height="22" aria-hidden="true" focusable="false">
     <g fill="currentColor">
       <rect x="6.0" y="11.0" width="42.0" height="8.1" rx="3.7"/>
@@ -310,7 +324,7 @@
   <span class="brand-word">Pubvera</span>
 </a>
 
-<!-- AUTH BAR — stays hidden until /config.json returns a Supabase config.
+<!-- AUTH CONTROLS — stay hidden until /config.json returns a Supabase config.
      Without one the page never loads Supabase and behaves exactly as it did
      before sign-in existed. Wired up by the module script at the end. -->
 <div class="auth-bar" id="authBar" hidden>
@@ -318,6 +332,7 @@
   <button type="button" class="auth-btn auth-btn-primary" id="authSignInBtn" hidden>Sign in with Google</button>
   <button type="button" class="auth-btn" id="authSignOutBtn" hidden>Sign out</button>
 </div>
+</header>
 
 <section class="hero">
   <h1><svg class="h1-mark" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><rect x="8" y="34" width="12" height="22" rx="3" fill="#00d4ff"/><rect x="26" y="22" width="12" height="34" rx="3" fill="#3b82f6"/><rect x="44" y="10" width="12" height="46" rx="3" fill="#7c3aed"/></svg> Bibliovera</h1>
