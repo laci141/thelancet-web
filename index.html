@@ -21,12 +21,13 @@
        resolve to well over double the intended value here. Do not "unify". */
     padding-top:calc(8px * 2 + max(22px, 12px + 5px * 2 + 2px) + 1px)}
 
-  /* GLASS-PANEL: színes háttér a panelek ALÁ — enélkül a blur nem látszik.
-     A foltok a TARTALOM mögé kerültek (35-65% vízszintesen), nem a képernyő
-     széleire: kívül csak feltűnő színes foltok voltak üres helyen, a blur
-     viszont csak ott működik, ahol egy panel ténylegesen rajtuk ül.
-     Az áttetszőség .30/.32 → .16/.18: a szélek így tiszták maradnak, a
-     panelek alatt viszont még bőven van mit elmosni. */
+  /* GLASS-PANEL: coloured background UNDERNEATH the panels — without it the
+     blur is invisible. The blobs were moved behind the CONTENT (35-65%
+     horizontally) rather than to the edges of the screen: out there they were
+     just conspicuous colour on empty space, and the blur only works where a
+     panel actually sits on top of them.
+     Opacity .30/.32 → .16/.18: the edges stay clean this way, while under the
+     panels there is still plenty left to blur. */
   body::before{
     content:"";position:fixed;inset:0;z-index:-1;
     background:
@@ -97,13 +98,13 @@
   .hero h1{font-size:clamp(2rem,5vw,3rem);font-weight:700;margin-bottom:.5rem;
     background:linear-gradient(90deg,#00d4ff,#7c3aed);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .hero p{font-size:1rem;color:#aab}
-  /* Mini diagram a cím mellett — SVG, mert emoji a background-clip:text alatt
-     tömör téglalapként jelenik meg */
+  /* Mini diagram next to the title — SVG, because under background-clip:text
+     an emoji renders as a solid rectangle */
   .h1-mark{width:.8em;height:.8em;vertical-align:-.06em;margin-right:.1em}
 
   .bento{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;padding:.7rem 2rem 2.2rem;max-width:1400px;margin:0 auto}
 
-  /* GLASS-PANEL kártyák — lapos fekvő téglalap, ikon balra, szöveg egy sorban */
+  /* GLASS-PANEL cards — flat landscape rectangle, icon on the left, text on one line */
   .card{background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.045));
     border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:1.1rem 1.5rem;
     cursor:pointer;transition:.3s;min-height:96px;display:flex;flex-direction:row;gap:1rem;
@@ -124,7 +125,7 @@
   @keyframes fade{from{opacity:0}to{opacity:1}}
   @keyframes slide{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
 
-  /* GLASS-PANEL modal — széles, a táblázat / gráf görgetés nélkül elfér */
+  /* GLASS-PANEL modal — wide, so the table / graph fits without scrolling */
   .mc{background:linear-gradient(160deg, rgba(30,32,58,.82), rgba(22,24,46,.86));
     border:1px solid rgba(255,255,255,.12);border-radius:20px;padding:1.6rem 1.8rem;
     width:1600px;max-width:98%;max-height:95vh;overflow-y:auto;
@@ -149,7 +150,7 @@
   .btn:hover{transform:scale(1.01);box-shadow:0 8px 24px rgba(0,212,255,.3)}
   .results{margin-top:1.3rem;animation:fade .3s ease}
 
-  /* Eredmény-fejléc: darabszám balra, JSON-letöltés gomb jobbra */
+  /* Result header: row count on the left, JSON download button on the right */
   .meta-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;gap:12px}
   .meta{font-size:.82rem;color:#99a}
   .dl{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#cdd6ea;
@@ -198,7 +199,7 @@
     opacity:.7;transition:opacity .2s;transform-origin:left}
   .bar-chart:hover{opacity:1}
 
-  /* Glass badge-ek (sötét témához) */
+  /* Glass badges (for the dark theme) */
   .badge-new{background:rgba(168,120,255,.18);color:#c9a8ff;border:1px solid rgba(168,120,255,.35);
     padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:600;white-space:nowrap}
   .badge-low{background:rgba(255,190,80,.15);color:#ffd28a;border:1px solid rgba(255,190,80,.35);
@@ -235,7 +236,7 @@
   .drift-axis{text-align:center;font-size:.72rem;color:#778;font-weight:700}
   .drift-legend{display:flex;justify-content:space-between;font-size:.78rem;color:#99a;margin:.4rem 0 .8rem}
 
-  /* Collaboration graph (D3 force-directed) — zoom+pan, nagy címkék erős halóval */
+  /* Collaboration graph (D3 force-directed) — zoom+pan, large labels with a strong halo */
   .graph-wrap{position:relative;width:100%;height:85vh;min-height:520px;max-height:1100px;
     border-radius:14px;overflow:hidden;
     background:radial-gradient(circle at 50% 40%,rgba(255,255,255,.04),transparent 70%);
@@ -258,7 +259,7 @@
   footer{text-align:center;padding:1.8rem;color:#778;border-top:1px solid rgba(255,255,255,.05);font-size:.82rem}
   footer a{color:#00d4ff;text-decoration:none}footer a:hover{text-decoration:underline}
 
-  /* Mobil: kisebb blur + kevesebb padding + kártyák egymás alatt */
+  /* Mobile: smaller blur + less padding + cards stacked on top of each other */
   @media(max-width:768px){
     html{font-size:120%}
     .bento{grid-template-columns:1fr;padding:.5rem 1rem 1.8rem}
@@ -542,7 +543,7 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const num=n=>(Number(n)||0).toLocaleString('en-US',{maximumFractionDigits:1});
 const CUR_YEAR=new Date().getFullYear();
 
-// Az utolsó lekérdezések nyers JSON-adata modulonként — a JSON gombhoz.
+// Raw JSON data of the last queries, per module — for the JSON button.
 const lastData={aff:null,auth:null,drift:null,read:null,rise:null,mesh:null};
 
 function downloadJSON(key,filename){
@@ -571,7 +572,7 @@ function downloadJSON(key,filename){
   URL.revokeObjectURL(url);
 }
 
-// Bármilyen sor-tömböt CSV-vé alakít (RFC4180). Excel-barát: BOM + CRLF.
+// Converts any array of rows to CSV (RFC4180). Excel-friendly: BOM + CRLF.
 function toCSV(rows,header){
   const cols=[];
   rows.forEach(r=>Object.keys(r||{}).forEach(k=>{if(!cols.includes(k))cols.push(k);}));
@@ -659,14 +660,14 @@ function downloadCSV(key,filename){
   URL.revokeObjectURL(url);
 }
 
-// Igazi .xlsx: középre igazított cellák, félkövér fejléc, auto oszlopszélesség.
+// Real .xlsx: centred cells, bold header, automatic column widths.
 function downloadXLSX(key,filename){
   if(!lastData[key]){alert("Run an analysis first.");return;}
   const rows=exportRows(key).rows;
   if(!rows.length){alert("Run an analysis first — or clear the filters, nothing is visible.");return;}
   const cols=[];
   rows.forEach(r=>Object.keys(r||{}).forEach(k=>{if(!cols.includes(k))cols.push(k);}));
-  // 0. sor: eredet-címsor (egyesítve), 1. sor: kék fejléc, adat a 2. sortól.
+  // Row 0: provenance heading (merged), row 1: blue header, data from row 2 on.
   const aoa=[[exportHeader(key,rows)],cols].concat(rows.map(r=>cols.map(c=>{
     const v=r?r[c]:"";
     if(v===null||v===undefined||v===false)return "";
@@ -674,7 +675,7 @@ function downloadXLSX(key,filename){
     return (typeof v==="object")?JSON.stringify(v):v;
   })));
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  // Oszlop-elemzés: hosszú szöveg (cím, topic) balra + tág; rövid/szám középen.
+  // Column analysis: long text (title, topic) left-aligned + wide; short/numeric centred.
   const colInfo=cols.map(c=>{
     let max=String(c).length, sum=0, cnt=0;
     rows.forEach(r=>{const v=r?r[c]:"";const L=String(v==null?"":v).length;if(L>max)max=L;sum+=L;cnt++;});
@@ -709,7 +710,7 @@ function downloadXLSX(key,filename){
   XLSX.writeFile(wb,filename);
 }
 
-// BibTeX generálás cikk-listákból (Reading List, Rising Papers).
+// BibTeX generation from paper lists (Reading List, Rising Papers).
 function bibKey(r,i){
   const t=String(r.title||r.display_name||"item").split(/\s+/)[0].replace(/[^A-Za-z0-9]/g,"");
   const y=Number(r.year||r.publication_year||0)||"";
@@ -742,9 +743,9 @@ function toBibTeX(rows){
   return out.join("\n\n")+"\n";
 }
 
-// @misc hivatkozás magára az ELEMZÉSRE (ahol nincs cikk-lista:
-// affiliations, authors, topic trends, collaboration). Ez szabványos
-// dataset/szoftver-hivatkozás, nem hamis cikk-bejegyzés.
+// @misc citation for the ANALYSIS itself (where there is no paper list:
+// affiliations, authors, topic trends, collaboration). This is a standard
+// dataset/software citation, not a fake article entry.
 const ANALYSIS_LABEL={
   aff:"Affiliation growth analysis",
   auth:"Author ranking analysis",
@@ -753,7 +754,7 @@ const ANALYSIS_LABEL={
 };
 function analysisBibTeX(key,rows){
   const label=ANALYSIS_LABEL[key]||"Bibliometric analysis";
-  // A modul meta-sorából vesszük a lekérdezés leírását (pl. "25 institutions · lancet").
+  // We take the query description from the module's meta row (e.g. "25 institutions · lancet").
   let scope="";
   const metaEl=document.querySelector("#"+key+"_res .meta");
   if(metaEl) scope=metaEl.textContent.replace(/\s*·\s*\d+\s*\/\s*\d+\s*rows\s*$/,"").trim();
@@ -770,23 +771,23 @@ function analysisBibTeX(key,rows){
     "}\n";
 }
 
-// Export-címkék: az ANALYSIS_LABEL kiegészítve a cikk-listás modulokkal —
-// csak az eredet-sorhoz, az @misc BibTeX-logika érintetlen marad.
+// Export labels: ANALYSIS_LABEL extended with the paper-list modules —
+// for the provenance row only, the @misc BibTeX logic stays untouched.
 const EXPORT_LABEL=Object.assign({},ANALYSIS_LABEL,{
   read:"Reading list (retraction-checked)",
   rise:"Rising papers analysis"
 });
 
-// A modul lekérdezés-leírása a meta-sorból (pl. "25 institutions · lancet"),
-// a végéről levágva a " · 7 / 25 rows" darabszám-kijelzőt.
+// The module's query description from the meta row (e.g. "25 institutions · lancet"),
+// with the " · 7 / 25 rows" count display trimmed off the end.
 function moduleQuery(key){
   const el=document.querySelector("#"+key+"_res .meta");
   if(!el)return "";
   return el.textContent.replace(/\s*·\s*\d+\s*\/\s*\d+\s*rows\s*$/,"").trim();
 }
 
-// Eredet-sor minden exportált fájl elejére: app, elemzés, lekérdezés,
-// showing N of M, aktív szűrők, forrás, dátum.
+// Provenance row for the top of every exported file: app, analysis, query,
+// showing N of M, active filters, source, date.
 function exportHeader(key,rows){
   const total=(rowsFromLastData(key)||[]).length;
   const shown=rows?rows.length:0;
@@ -807,7 +808,7 @@ function downloadBibTeX(key,filename){
   const rows=exportRows(key).rows;
   if(!rows.length){alert("Run an analysis first — or clear the filters, nothing is visible.");return;}
   const papers=rows.filter(r=>r&&(r.title||r.display_name));
-  // Cikk-listánál igazi @article; egyébként @misc hivatkozás az elemzésre.
+  // For a paper list a real @article; otherwise an @misc citation for the analysis.
   const text="% "+exportHeader(key,rows)+"\n"+
     (papers.length?toBibTeX(papers):analysisBibTeX(key,rows));
   const blob=new Blob([text],{type:"application/x-bibtex;charset=utf-8"});
@@ -823,7 +824,7 @@ function metaRow(text,key,filename){
   const csvName=String(filename).replace(/\.json$/i,".csv");
   const xlsxName=String(filename).replace(/\.json$/i,".xlsx");
   const bibName=String(filename).replace(/\.json$/i,".bib");
-  // BibTeX minden modulban: cikk-listánál @article, elemzésnél @misc.
+  // BibTeX in every module: @article for a paper list, @misc for an analysis.
   const bibTitle=(key==="read"||key==="rise")
     ? "BibTeX citations for these papers"
     : "BibTeX citation for this analysis (@misc)";
@@ -1246,7 +1247,7 @@ function drawMeshGraph(pairs){
   const svg=d3.select(wrap).append("svg").attr("viewBox",[0,0,W,H]);
   const tip=$("#gtip");
 
-  // Zoom container: minden elem ebbe a <g>-be kerül, a zoom ezt transzformálja.
+  // Zoom container: every element goes into this <g>, and the zoom transforms it.
   const zoomG=svg.append("g");
 
   const zoom=d3.zoom()
@@ -1276,13 +1277,13 @@ function drawMeshGraph(pairs){
     })
     .on("mouseleave",()=>{tip.style.opacity=0;});
 
-  // Rövidített címke: max 16 karakter — a teljes név a hover-tooltipben.
+  // Shortened label: max 16 characters — the full name is in the hover tooltip.
   const label=zoomG.append("g").selectAll("text").data(nodes).join("text")
     .attr("class","glabel").attr("dx",16).attr("dy",7)
     .text(n=>n.id.length>16?n.id.slice(0,14)+"…":n.id);
 
-  // Elrendezés: gyenge x/y erő húzza a magányos párokat is a közép felé,
-  // így nem szóródnak a sarkokba — a hely jobban kihasznált.
+  // Layout: a weak x/y force pulls even the lonely pairs towards the centre,
+  // so they do not scatter into the corners — the space is used better.
   meshSim=d3.forceSimulation(nodes)
     .force("link",d3.forceLink(links).id(d=>d.id).distance(l=>130-(l.weight/maxW)*45).strength(.55))
     .force("charge",d3.forceManyBody().strength(-560))
@@ -1326,8 +1327,8 @@ async function checkRetractions(rows,prefix){
   });
 }
 
-// A .qcount mindig a végső, minden szűrő utáni darabszámot mutatja — ennyi
-// sor kerül az exportba is.
+// .qcount always shows the final count, after every filter — that is how many
+// rows go into the export as well.
 function updateQcount(res){
   if(!res)return;
   const cnt=res.querySelector(".qcount");
@@ -1339,7 +1340,7 @@ function updateQcount(res){
   cnt.textContent=" · "+vis+" / "+rows.length+" rows";
 }
 
-// Delegált gyorsszűrő: gépelésre elrejti a nem illeszkedő sorokat, számlálóval.
+// Delegated quick filter: as you type it hides the non-matching rows, with a counter.
 document.addEventListener("input",e=>{
   const inp=e.target.closest(".qfilter");
   if(!inp)return;
@@ -1353,7 +1354,7 @@ document.addEventListener("input",e=>{
   updateQcount(res);
 });
 
-// Delegált rendezés: bármelyik eredmény-táblázat fejlécére kattintva rendez.
+// Delegated sorting: clicking the header of any result table sorts it.
 document.addEventListener("click",e=>{
   const th=e.target.closest(".results table th");
   if(!th)return;
