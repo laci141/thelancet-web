@@ -716,8 +716,14 @@ function bibKey(r,i){
   const y=Number(r.year||r.publication_year||0)||"";
   return (t||"ref").toLowerCase()+(y||"")+"_"+(i+1);
 }
-function bibEsc(v){ return String(v==null?"":v).replace(/[{}\\]/g,"").trim(); }
-
+function bibEsc(v){
+  return String(v==null?"":v)
+    .replace(/[{}\\]/g,"")
+    .replace(/([&%#_$])/g,"\\$1")
+    .replace(/\^/g,"\\textasciicircum{}")
+    .replace(/~/g,"\\textasciitilde{}")
+    .trim();
+}
 function toBibTeX(rows){
   const out=[];
   rows.forEach((r,i)=>{
