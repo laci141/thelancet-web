@@ -78,6 +78,21 @@ func dbPath() string {
 	return "data.db"
 }
 
+// crossrefMailto returns the contact address for Crossref's polite pool, or an
+// empty string when CROSSREF_MAILTO is unset.
+//
+// Measured: an anonymous Crossref request reports x-rate-limit-limit 5, the
+// same request with a mailto reports 10. Only the retraction-checker talks to
+// Crossref, and only that binary has a --mailto flag — the analytics CLI
+// (thelancet-pp-cli) does not, so adding the flag to runCLIRaw would fail every
+// analytics endpoint with "unknown flag".
+//
+// Unset is not an error: /check keeps working on the anonymous pool, which is
+// what local development and any deployment without the variable rely on.
+func crossrefMailto() string {
+	return strings.TrimSpace(os.Getenv("CROSSREF_MAILTO"))
+}
+
 func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
@@ -98,8 +113,15 @@ func main() {
 	} else if p := strings.TrimSpace(os.Getenv("PORT")); p != "" {
 		addr = "0.0.0.0:" + p
 	}
+	// polite=on/off rather than the address itself: whether the variable took
+	// effect is the operational question, and the value is already in the
+	// compose file.
+	polite := "off"
+	if crossrefMailto() != "" {
+		polite = "on"
+	}
 	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 10 * time.Second}
-	log.Printf("bibliovera-web listening on %s (CLI: %s, DB: %s, slots=%d)", addr, cliBinaryPath(), dbPath(), cliSem.capacity())
+	log.Printf("bibliovera-web listening on %s (CLI: %s, DB: %s, slots=%d, crossref_polite=%s)", addr, cliBinaryPath(), dbPath(), cliSem.capacity(), polite)
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
@@ -372,6 +394,11 @@ func handleCheck(w http.ResponseWriter, r *http.Request) {
 		args = append(args, doi)
 	} else {
 		args = append(args, pmid)
+	}
+	// Appended last, never in front: cliCmdLabel reads args[0] for the log
+	// label, and a flag there would turn every /check line into cmd=?.
+	if m := crossrefMailto(); m != "" {
+		args = append(args, "--mailto", m)
 	}
 
 	label := cliCmdLabel(args)
